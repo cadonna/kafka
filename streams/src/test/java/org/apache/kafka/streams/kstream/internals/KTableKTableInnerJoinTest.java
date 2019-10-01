@@ -259,7 +259,10 @@ public class KTableKTableInnerJoinTest {
         join.process(null, new Change<>("new", "old"));
         LogCaptureAppender.unregister(appender);
 
-        assertEquals(1.0, getMetricByName(context.metrics().metrics(), "skipped-records-total", "stream-metrics").metricValue());
+        assertEquals(
+            1.0,
+            getMetricByName(context.metrics().metrics(), "skipped-records-total", "stream-thread-metrics").metricValue()
+        );
         assertThat(appender.getMessages(), hasItem("Skipping record due to null key. change=[(new<-old)] topic=[left] partition=[-1] offset=[-2]"));
     }
 
