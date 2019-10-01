@@ -110,7 +110,7 @@ public class ProcessorNodeTest {
         final Map<String, String> metricTags = new LinkedHashMap<>();
         metricTags.put("processor-node-id", node.name());
         metricTags.put("task-id", context.taskId().toString());
-        metricTags.put("client-id", "mock");
+        metricTags.put("thread-id", "mock");
 
         for (final String opName : latencyOperations) {
             StreamsTestUtils.getMetricByNameFilterByTags(metrics.metrics(), opName + "-latency-avg", groupName, metricTags);
@@ -137,7 +137,7 @@ public class ProcessorNodeTest {
 
         final JmxReporter reporter = new JmxReporter("kafka.streams");
         metrics.addReporter(reporter);
-        assertTrue(reporter.containsMbean(String.format("kafka.streams:type=%s,client-id=mock,task-id=%s,processor-node-id=%s",
+        assertTrue(reporter.containsMbean(String.format("kafka.streams:type=%s,thread-id=mock,task-id=%s,processor-node-id=%s",
                 groupName, context.taskId().toString(), node.name())));
     }
 
