@@ -85,7 +85,7 @@ public class InMemorySessionStore implements SessionStore<Bytes, byte[]> {
         addInvocationRateAndCountToSensor(
             expiredRecordSensor,
             "stream-" + metricScope + "-metrics",
-            metrics.tagMap("task-id", taskName, metricScope + "-id", name()),
+            metrics.storeLevelTagMap(taskName, metricScope, name()),
             EXPIRED_WINDOW_RECORD_DROP
         );
 

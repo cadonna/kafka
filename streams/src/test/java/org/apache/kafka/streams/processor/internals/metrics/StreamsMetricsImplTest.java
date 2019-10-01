@@ -230,7 +230,7 @@ public class StreamsMetricsImplTest extends EasyMockSupport {
             "op-total",
             "stream-scope-metrics",
             "",
-            "client-id",
+            "thread-id",
             "",
             "scope-id",
             "entity"
@@ -245,15 +245,28 @@ public class StreamsMetricsImplTest extends EasyMockSupport {
     }
 
     @Test
-    public void shouldGetStoreLevelTagMap() {
+    public void shouldGetStoreLevelTagMapForBuiltInMetricsLatestVersion() {
+        shouldGetStoreLevelTagMap(StreamsConfig.METRICS_LATEST);
+    }
+
+    @Test
+    public void shouldGetStoreLevelTagMapForBuiltInMetricsVersion0100To23() {
+        shouldGetStoreLevelTagMap(StreamsConfig.METRICS_0100_TO_23);
+    }
+
+    private void shouldGetStoreLevelTagMap(final String builtInMetricsVersion) {
         final String taskName = "test-task";
         final String storeType = "remote-window";
         final String storeName = "window-keeper";
+        final StreamsMetricsImpl streamsMetrics = new StreamsMetricsImpl(metrics, THREAD_NAME, builtInMetricsVersion);
 
         final Map<String, String> tagMap = streamsMetrics.storeLevelTagMap(taskName, storeType, storeName);
 
         assertThat(tagMap.size(), equalTo(3));
-        assertThat(tagMap.get(StreamsMetricsImpl.THREAD_ID_TAG_0100_TO_23), equalTo(THREAD_NAME));
+        assertThat(
+            tagMap.get(builtInMetricsVersion.equals(StreamsConfig.METRICS_LATEST) ? StreamsMetricsImpl.THREAD_ID_TAG
+                : StreamsMetricsImpl.THREAD_ID_TAG_0100_TO_23),
+            equalTo(THREAD_NAME));
         assertThat(tagMap.get(StreamsMetricsImpl.TASK_ID_TAG), equalTo(taskName));
         assertThat(tagMap.get(storeType + "-" + StreamsMetricsImpl.STORE_ID_TAG), equalTo(storeName));
     }
@@ -285,6 +298,29 @@ public class StreamsMetricsImplTest extends EasyMockSupport {
         );
         assertThat(tagMap.get(StreamsMetricsImpl.TASK_ID_TAG), equalTo(taskName));
         assertThat(tagMap.get(StreamsMetricsImpl.RECORD_CACHE_ID_TAG), equalTo(storeName));
+    }
+
+    @Test
+    public void shouldGetThreadLevelTagMapForBuiltInMetricsLatestVersion() {
+        shouldGetThreadLevelTagMap(StreamsConfig.METRICS_LATEST);
+    }
+
+    @Test
+    public void shouldGetThreadLevelTagMapForBuiltInMetricsVersion0100To23() {
+        shouldGetThreadLevelTagMap(StreamsConfig.METRICS_0100_TO_23);
+    }
+
+    private void shouldGetThreadLevelTagMap(final String builtInMetricsVersion) {
+        final StreamsMetricsImpl streamsMetrics = new StreamsMetricsImpl(metrics, THREAD_NAME, builtInMetricsVersion);
+
+        final Map<String, String> tagMap = streamsMetrics.threadLevelTagMap();
+
+        assertThat(tagMap.size(), equalTo(1));
+        assertThat(
+            tagMap.get(builtInMetricsVersion.equals(StreamsConfig.METRICS_LATEST) ? StreamsMetricsImpl.THREAD_ID_TAG
+                : StreamsMetricsImpl.THREAD_ID_TAG_0100_TO_23),
+            equalTo(THREAD_NAME)
+        );
     }
 
     @Test

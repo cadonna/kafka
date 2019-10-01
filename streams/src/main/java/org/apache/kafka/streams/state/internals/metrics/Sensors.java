@@ -76,10 +76,7 @@ public final class Sensors {
 
         final String metricsGroup = "stream-buffer-metrics";
 
-        final Map<String, String> tags = metrics.tagMap(
-            "task-id", context.taskId().toString(),
-            "buffer-id", store.name()
-        );
+        final Map<String, String> tags = metrics.bufferLevelTagMap(context.taskId().toString(), store.name());
 
         sensor.add(
             new MetricName(

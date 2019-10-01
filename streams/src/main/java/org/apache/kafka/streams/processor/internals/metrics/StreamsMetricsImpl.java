@@ -71,6 +71,7 @@ public class StreamsMetricsImpl implements StreamsMetrics {
     public static final String THREAD_ID_TAG_0100_TO_23 = "client-id";
     public static final String TASK_ID_TAG = "task-id";
     public static final String STORE_ID_TAG = "state-id";
+    public static final String BUFFER_ID_TAG = "buffer-id";
     public static final String RECORD_CACHE_ID_TAG = "record-cache-id";
 
     public static final String ROLLUP_VALUE = "all";
@@ -151,22 +152,13 @@ public class StreamsMetricsImpl implements StreamsMetrics {
 
     public Map<String, String> threadLevelTagMap() {
         final Map<String, String> tagMap = new LinkedHashMap<>();
-        tagMap.put(THREAD_ID_TAG_0100_TO_23, threadName);
+        tagMap.put(version == Version.LATEST ? THREAD_ID_TAG : THREAD_ID_TAG_0100_TO_23, threadName);
         return tagMap;
     }
 
     public Map<String, String> threadLevelTagMap(final String... tags) {
         final Map<String, String> tagMap = threadLevelTagMap();
-        if (tags != null) {
-            if ((tags.length % 2) != 0) {
-                throw new IllegalArgumentException("Tags needs to be specified in key-value pairs");
-            }
-
-            for (int i = 0; i < tags.length; i += 2) {
-                tagMap.put(tags[i], tags[i + 1]);
-            }
-        }
-        return tagMap;
+        return addTags(tagMap, tags);
     }
 
     public final void removeAllThreadLevelSensors() {
@@ -183,9 +175,39 @@ public class StreamsMetricsImpl implements StreamsMetrics {
         return tagMap;
     }
 
+    public Map<String, String> taskLevelTagMap(final String taskName, final String... tags) {
+        final Map<String, String> tagMap = taskLevelTagMap(taskName);
+        return addTags(tagMap, tags);
+    }
+
+    public Map<String, String> nodeLevelTagMap(final String taskName, final String processorNodeName) {
+        final Map<String, String> tagMap = taskLevelTagMap(taskName);
+        tagMap.put(PROCESSOR_NODE_ID_TAG, processorNodeName);
+        return tagMap;
+    }
+
     public Map<String, String> storeLevelTagMap(final String taskName, final String storeType, final String storeName) {
         final Map<String, String> tagMap = taskLevelTagMap(taskName);
         tagMap.put(storeType + "-" + STORE_ID_TAG, storeName);
+        return tagMap;
+    }
+
+    public Map<String, String> bufferLevelTagMap(final String taskName, final String bufferName) {
+        final Map<String, String> tagMap = taskLevelTagMap(taskName);
+        tagMap.put(BUFFER_ID_TAG, bufferName);
+        return tagMap;
+    }
+
+    private Map<String, String> addTags(final Map<String, String> tagMap, final String... tags) {
+        if (tags != null) {
+            if ((tags.length % 2) != 0) {
+                throw new IllegalArgumentException("Tags needs to be specified in key-value pairs");
+            }
+
+            for (int i = 0; i < tags.length; i += 2) {
+                tagMap.put(tags[i], tags[i + 1]);
+            }
+        }
         return tagMap;
     }
 
@@ -363,29 +385,12 @@ public class StreamsMetricsImpl implements StreamsMetrics {
         sensor.record(value);
     }
 
-    public final Map<String, String> tagMap(final String... tags) {
-        final Map<String, String> tagMap = new LinkedHashMap<>();
-        tagMap.put("client-id", threadName);
-        if (tags != null) {
-            if ((tags.length % 2) != 0) {
-                throw new IllegalArgumentException("Tags needs to be specified in key-value pairs");
-            }
-
-            for (int i = 0; i < tags.length; i += 2) {
-                tagMap.put(tags[i], tags[i + 1]);
-            }
-        }
-        return tagMap;
-    }
-
-
     private Map<String, String> constructTags(final String scopeName, final String entityName, final String... tags) {
         final String[] updatedTags = Arrays.copyOf(tags, tags.length + 2);
         updatedTags[tags.length] = scopeName + "-id";
         updatedTags[tags.length + 1] = entityName;
-        return tagMap(updatedTags);
+        return threadLevelTagMap(updatedTags);
     }
-
 
     /**
      * @throws IllegalArgumentException if tags is not constructed in key-value pairs
