@@ -377,10 +377,12 @@ public class KStreamSessionWindowAggregateProcessorTest {
 
         assertEquals(
             1.0,
-            getMetricByName(context.metrics().metrics(), "skipped-records-total", "stream-metrics").metricValue());
+            getMetricByName(context.metrics().metrics(), "skipped-records-total", "stream-thread-metrics").metricValue()
+        );
         assertThat(
             appender.getMessages(),
-            hasItem("Skipping record due to null key. value=[1] topic=[topic] partition=[-3] offset=[-2]"));
+            hasItem("Skipping record due to null key. value=[1] topic=[topic] partition=[-3] offset=[-2]")
+        );
     }
 
     @Test

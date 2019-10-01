@@ -263,7 +263,7 @@ public class StreamThreadTest {
     @Test
     public void testMetricsCreatedAtStartup() {
         final StreamThread thread = createStreamThread(clientId, config, false);
-        final String defaultGroupName = "stream-metrics";
+        final String defaultGroupName = "stream-thread-metrics";
         final Map<String, String> defaultTags = Collections.singletonMap("thread-id", thread.getName());
         final String descriptionIsNotVerified = "";
 
@@ -1520,11 +1520,11 @@ public class StreamThreadTest {
 
         final MetricName skippedTotalMetric = metrics.metricName(
             "skipped-records-total",
-            "stream-metrics",
+            "stream-thread-metrics",
             Collections.singletonMap("thread-id", thread.getName()));
         final MetricName skippedRateMetric = metrics.metricName(
             "skipped-records-rate",
-            "stream-metrics",
+            "stream-thread-metrics",
             Collections.singletonMap("thread-id", thread.getName()));
         assertEquals(0.0, metrics.metric(skippedTotalMetric).metricValue());
         assertEquals(0.0, metrics.metric(skippedRateMetric).metricValue());
@@ -1593,11 +1593,11 @@ public class StreamThreadTest {
 
         final MetricName skippedTotalMetric = metrics.metricName(
             "skipped-records-total",
-            "stream-metrics",
+            "stream-thread-metrics",
             Collections.singletonMap("thread-id", thread.getName()));
         final MetricName skippedRateMetric = metrics.metricName(
             "skipped-records-rate",
-            "stream-metrics",
+            "stream-thread-metrics",
             Collections.singletonMap("thread-id", thread.getName()));
         assertEquals(0.0, metrics.metric(skippedTotalMetric).metricValue());
         assertEquals(0.0, metrics.metric(skippedRateMetric).metricValue());
