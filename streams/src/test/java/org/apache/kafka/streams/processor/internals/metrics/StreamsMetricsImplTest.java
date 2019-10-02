@@ -54,6 +54,11 @@ public class StreamsMetricsImplTest extends EasyMockSupport {
     private final static String INTERNAL_PREFIX = "internal";
     private final static String THREAD_NAME = "test-thread";
     private final static String VERSION = StreamsConfig.METRICS_LATEST;
+    private final static String THREAD_ID_TAG = "thread-id";
+    private final static String THREAD_ID_TAG_0100_TO_23 = "client-id";
+    private final static String TASK_ID_TAG = "task-id";
+    private final static String STORE_ID_TAG = "state-id";
+    private final static String RECORD_CACHE_ID_TAG = "record-cache-id";
 
     private final Metrics metrics = new Metrics();
     private final Sensor sensor = metrics.sensor("dummy");
@@ -267,8 +272,8 @@ public class StreamsMetricsImplTest extends EasyMockSupport {
         assertThat(
             tagMap.get(isMetricsLatest ? StreamsMetricsImpl.THREAD_ID_TAG : StreamsMetricsImpl.THREAD_ID_TAG_0100_TO_23),
             equalTo(THREAD_NAME));
-        assertThat(tagMap.get(StreamsMetricsImpl.TASK_ID_TAG), equalTo(taskName));
-        assertThat(tagMap.get(storeType + "-" + StreamsMetricsImpl.STORE_ID_TAG), equalTo(storeName));
+        assertThat(tagMap.get(TASK_ID_TAG), equalTo(taskName));
+        assertThat(tagMap.get(storeType + "-" + STORE_ID_TAG), equalTo(storeName));
     }
 
     @Test
@@ -295,8 +300,8 @@ public class StreamsMetricsImplTest extends EasyMockSupport {
             tagMap.get(isMetricsLatest ? StreamsMetricsImpl.THREAD_ID_TAG : StreamsMetricsImpl.THREAD_ID_TAG_0100_TO_23),
             equalTo(Thread.currentThread().getName())
         );
-        assertThat(tagMap.get(StreamsMetricsImpl.TASK_ID_TAG), equalTo(taskName));
-        assertThat(tagMap.get(StreamsMetricsImpl.RECORD_CACHE_ID_TAG), equalTo(storeName));
+        assertThat(tagMap.get(TASK_ID_TAG), equalTo(taskName));
+        assertThat(tagMap.get(RECORD_CACHE_ID_TAG), equalTo(storeName));
     }
 
     @Test
@@ -316,8 +321,8 @@ public class StreamsMetricsImplTest extends EasyMockSupport {
 
         assertThat(tagMap.size(), equalTo(1));
         assertThat(
-            tagMap.get(builtInMetricsVersion.equals(StreamsConfig.METRICS_LATEST) ? StreamsMetricsImpl.THREAD_ID_TAG
-                : StreamsMetricsImpl.THREAD_ID_TAG_0100_TO_23),
+            tagMap.get(builtInMetricsVersion.equals(StreamsConfig.METRICS_LATEST) ? THREAD_ID_TAG
+                : THREAD_ID_TAG_0100_TO_23),
             equalTo(THREAD_NAME)
         );
     }
