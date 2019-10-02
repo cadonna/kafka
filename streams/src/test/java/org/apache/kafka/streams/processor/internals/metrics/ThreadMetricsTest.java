@@ -33,6 +33,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.ROLLUP_VALUE;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.TASK_ID_TAG;
@@ -40,6 +41,7 @@ import static org.easymock.EasyMock.expect;
 import static org.easymock.EasyMock.mock;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertFalse;
 import static org.powermock.api.easymock.PowerMock.createMock;
 import static org.powermock.api.easymock.PowerMock.mockStatic;
 import static org.powermock.api.easymock.PowerMock.replay;
@@ -239,56 +241,62 @@ public class ThreadMetricsTest {
 
     @Test
     public void shouldGetSkipRecordSensor() {
-        final String operation = "skipped-records";
-        final String totalDescription = "The total number of skipped records";
-        final String rateDescription = "The average per-second number of skipped records";
-        expect(streamsMetrics.threadLevelSensor(operation, RecordingLevel.INFO)).andReturn(expectedSensor);
-        expect(streamsMetrics.threadLevelTagMap()).andReturn(tagMap);
-        StreamsMetricsImpl.addInvocationRateAndCountToSensor(
-            expectedSensor,
-            threadLevelGroup,
-            tagMap,
-            operation,
-            totalDescription,
-            rateDescription
-        );
+        if (builtInMetricsVersion == Version.FROM_100_TO_23) {
+            final String operation = "skipped-records";
+            final String totalDescription = "The total number of skipped records";
+            final String rateDescription = "The average per-second number of skipped records";
+            expect(streamsMetrics.threadLevelSensor(operation, RecordingLevel.INFO)).andReturn(expectedSensor);
+            expect(streamsMetrics.threadLevelTagMap()).andReturn(tagMap);
+            StreamsMetricsImpl.addInvocationRateAndCountToSensor(
+                expectedSensor,
+                threadLevelGroup,
+                tagMap,
+                operation,
+                totalDescription,
+                rateDescription
+            );
+        }
+        replay(StreamsMetricsImpl.class, streamsMetrics);
 
-        replayAll();
-        replay(StreamsMetricsImpl.class);
+        final Optional<Sensor> sensor = ThreadMetrics.skipRecordSensor(streamsMetrics);
 
-        final Sensor sensor = ThreadMetrics.skipRecordSensor(streamsMetrics);
+        verify(StreamsMetricsImpl.class, streamsMetrics);
 
-        verifyAll();
-        verify(StreamsMetricsImpl.class);
-
-        assertThat(sensor, is(this.expectedSensor));
+        if (builtInMetricsVersion == Version.FROM_100_TO_23) {
+            assertThat(sensor.orElse(null), is(this.expectedSensor));
+        } else {
+            assertFalse(sensor.isPresent());
+        }
     }
 
     @Test
     public void shouldGetCommitOverTasksSensor() {
-        final String operation = "commit";
-        final String operationLatency = operation + StreamsMetricsImpl.LATENCY_SUFFIX;
-        final String totalDescription = "The total number of commit calls over all tasks";
-        final String rateDescription = "The average per-second number of commit calls over all tasks";
-        expect(streamsMetrics.threadLevelSensor(operation, RecordingLevel.DEBUG)).andReturn(expectedSensor);
-        expect(streamsMetrics.threadLevelTagMap(TASK_ID_TAG, ROLLUP_VALUE)).andReturn(tagMap);
-        StreamsMetricsImpl.addInvocationRateAndCountToSensor(
-            expectedSensor, TASK_LEVEL_GROUP,
-            tagMap,
-            operation,
-            totalDescription,
-            rateDescription
-        );
-        StreamsMetricsImpl.addAvgAndMaxToSensor(expectedSensor, TASK_LEVEL_GROUP, tagMap, operationLatency);
+        if (builtInMetricsVersion == Version.FROM_100_TO_23) {
+            final String operation = "commit";
+            final String operationLatency = operation + StreamsMetricsImpl.LATENCY_SUFFIX;
+            final String totalDescription = "The total number of commit calls over all tasks";
+            final String rateDescription = "The average per-second number of commit calls over all tasks";
+            expect(streamsMetrics.threadLevelSensor(operation, RecordingLevel.DEBUG)).andReturn(expectedSensor);
+            expect(streamsMetrics.threadLevelTagMap(TASK_ID_TAG, ROLLUP_VALUE)).andReturn(tagMap);
+            StreamsMetricsImpl.addInvocationRateAndCountToSensor(
+                expectedSensor, TASK_LEVEL_GROUP,
+                tagMap,
+                operation,
+                totalDescription,
+                rateDescription
+            );
+            StreamsMetricsImpl.addAvgAndMaxToSensor(expectedSensor, TASK_LEVEL_GROUP, tagMap, operationLatency);
+        }
+        replay(StreamsMetricsImpl.class, streamsMetrics);
 
-        replayAll();
-        replay(StreamsMetricsImpl.class);
+        final Optional<Sensor> sensor = ThreadMetrics.commitOverTasksSensor(streamsMetrics);
 
-        final Sensor sensor = ThreadMetrics.commitOverTasksSensor(streamsMetrics);
+        verify(StreamsMetricsImpl.class, streamsMetrics);
 
-        verifyAll();
-        verify(StreamsMetricsImpl.class);
-
-        assertThat(sensor, is(this.expectedSensor));
+        if (builtInMetricsVersion == Version.FROM_100_TO_23) {
+            assertThat(sensor.orElse(null), is(this.expectedSensor));
+        } else {
+            assertFalse(sensor.isPresent());
+        }
     }
 }
