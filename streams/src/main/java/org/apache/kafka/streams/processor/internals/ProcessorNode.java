@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.PROCESSOR_NODE_METRICS_GROUP;
+import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.PROCESSOR_NODE_LEVEL_GROUP;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.ROLLUP_VALUE;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.addAvgAndMaxLatencyToSensor;
 
@@ -231,14 +231,14 @@ public class ProcessorNode<K, V> {
                                                                            final Map<String, String> taskTags,
                                                                            final Map<String, String> nodeTags) {
             final Sensor parent = metrics.taskLevelSensor(taskName, operation, Sensor.RecordingLevel.DEBUG);
-            addAvgAndMaxLatencyToSensor(parent, PROCESSOR_NODE_METRICS_GROUP, taskTags, operation);
+            addAvgAndMaxLatencyToSensor(parent, PROCESSOR_NODE_LEVEL_GROUP, taskTags, operation);
             StreamsMetricsImpl
-                .addInvocationRateAndCountToSensor(parent, PROCESSOR_NODE_METRICS_GROUP, taskTags, operation);
+                .addInvocationRateAndCountToSensor(parent, PROCESSOR_NODE_LEVEL_GROUP, taskTags, operation);
 
             final Sensor sensor = metrics.nodeLevelSensor(taskName, processorNodeName, operation, Sensor.RecordingLevel.DEBUG, parent);
-            addAvgAndMaxLatencyToSensor(sensor, PROCESSOR_NODE_METRICS_GROUP, nodeTags, operation);
+            addAvgAndMaxLatencyToSensor(sensor, PROCESSOR_NODE_LEVEL_GROUP, nodeTags, operation);
             StreamsMetricsImpl
-                .addInvocationRateAndCountToSensor(sensor, PROCESSOR_NODE_METRICS_GROUP, nodeTags, operation);
+                .addInvocationRateAndCountToSensor(sensor, PROCESSOR_NODE_LEVEL_GROUP, nodeTags, operation);
 
             return sensor;
         }

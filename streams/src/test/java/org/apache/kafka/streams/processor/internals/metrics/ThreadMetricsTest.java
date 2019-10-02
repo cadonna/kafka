@@ -241,32 +241,25 @@ public class ThreadMetricsTest {
 
     @Test
     public void shouldGetSkipRecordSensor() {
-        if (builtInMetricsVersion == Version.FROM_100_TO_23) {
-            final String operation = "skipped-records";
-            final String totalDescription = "The total number of skipped records";
-            final String rateDescription = "The average per-second number of skipped records";
-            expect(streamsMetrics.threadLevelSensor(operation, RecordingLevel.INFO)).andReturn(expectedSensor);
-            expect(streamsMetrics.threadLevelTagMap()).andReturn(tagMap);
-            StreamsMetricsImpl.addInvocationRateAndCountToSensor(
-                expectedSensor,
-                threadLevelGroup,
-                tagMap,
-                operation,
-                totalDescription,
-                rateDescription
-            );
-        }
+        final String operation = "skipped-records";
+        final String totalDescription = "The total number of skipped records";
+        final String rateDescription = "The average per-second number of skipped records";
+        expect(streamsMetrics.threadLevelSensor(operation, RecordingLevel.INFO)).andReturn(expectedSensor);
+        expect(streamsMetrics.threadLevelTagMap()).andReturn(tagMap);
+        StreamsMetricsImpl.addInvocationRateAndCountToSensor(
+            expectedSensor,
+            threadLevelGroup,
+            tagMap,
+            operation,
+            totalDescription,
+            rateDescription
+        );
         replay(StreamsMetricsImpl.class, streamsMetrics);
 
-        final Optional<Sensor> sensor = ThreadMetrics.skipRecordSensor(streamsMetrics);
+        final Sensor sensor = ThreadMetrics.skipRecordSensor(streamsMetrics);
 
         verify(StreamsMetricsImpl.class, streamsMetrics);
-
-        if (builtInMetricsVersion == Version.FROM_100_TO_23) {
-            assertThat(sensor.orElse(null), is(this.expectedSensor));
-        } else {
-            assertFalse(sensor.isPresent());
-        }
+        assertThat(sensor, is(this.expectedSensor));
     }
 
     @Test

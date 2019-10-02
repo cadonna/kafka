@@ -32,7 +32,6 @@ import org.junit.Test;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -98,7 +97,7 @@ public class ProcessorNodeTest {
                 null,
                 new LogContext("processnode-test "),
                 new DefaultProductionExceptionHandler(),
-                Optional.of(metrics.sensor("skipped-records"))
+                metrics.sensor("dropped-records")
             ),
             metrics
         );

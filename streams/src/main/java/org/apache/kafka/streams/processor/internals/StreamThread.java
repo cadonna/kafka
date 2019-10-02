@@ -44,6 +44,7 @@ import org.apache.kafka.streams.processor.TaskMetadata;
 import org.apache.kafka.streams.processor.ThreadMetadata;
 import org.apache.kafka.streams.processor.internals.assignment.AssignorError;
 import org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl;
+import org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.Version;
 import org.apache.kafka.streams.processor.internals.metrics.ThreadMetrics;
 import org.apache.kafka.streams.state.internals.ThreadCache;
 import org.apache.kafka.streams.state.internals.metrics.RocksDBMetricsRecordingTrigger;
@@ -608,7 +609,9 @@ public class StreamThread extends Thread {
         // tasks would never be added to the metrics.
         ThreadMetrics.createTaskSensor(streamsMetrics);
         ThreadMetrics.closeTaskSensor(streamsMetrics);
-        ThreadMetrics.skipRecordSensor(streamsMetrics);
+        if (streamsMetrics.version() == Version.FROM_100_TO_23) {
+            ThreadMetrics.skipRecordSensor(streamsMetrics);
+        }
         ThreadMetrics.commitOverTasksSensor(streamsMetrics);
 
         this.time = time;

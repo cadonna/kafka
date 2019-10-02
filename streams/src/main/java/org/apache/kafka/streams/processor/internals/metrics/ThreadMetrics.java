@@ -165,21 +165,18 @@ public class ThreadMetrics {
         return punctuateSensor;
     }
 
-    public static Optional<Sensor> skipRecordSensor(final StreamsMetricsImpl streamsMetrics) {
-        if (streamsMetrics.version() == Version.FROM_100_TO_23) {
-            final Sensor skippedRecordsSensor =
-                streamsMetrics.threadLevelSensor(SKIP_RECORD, Sensor.RecordingLevel.INFO);
-            addInvocationRateAndCountToSensor(
-                skippedRecordsSensor,
-                getThreadLevelGroup(streamsMetrics),
-                streamsMetrics.threadLevelTagMap(),
-                SKIP_RECORD,
-                SKIP_RECORD_TOTAL_DESCRIPTION,
-                SKIP_RECORD_RATE_DESCRIPTION
-            );
-            return Optional.of(skippedRecordsSensor);
-        }
-        return Optional.empty();
+    public static Sensor skipRecordSensor(final StreamsMetricsImpl streamsMetrics) {
+        final Sensor skippedRecordsSensor =
+            streamsMetrics.threadLevelSensor(SKIP_RECORD, Sensor.RecordingLevel.INFO);
+        addInvocationRateAndCountToSensor(
+            skippedRecordsSensor,
+            getThreadLevelGroup(streamsMetrics),
+            streamsMetrics.threadLevelTagMap(),
+            SKIP_RECORD,
+            SKIP_RECORD_TOTAL_DESCRIPTION,
+            SKIP_RECORD_RATE_DESCRIPTION
+        );
+        return skippedRecordsSensor;
     }
 
     private static String getThreadLevelGroup(final StreamsMetricsImpl streamsMetrics) {
