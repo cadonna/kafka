@@ -263,9 +263,9 @@ public class StreamsMetricsImplTest extends EasyMockSupport {
         final Map<String, String> tagMap = streamsMetrics.storeLevelTagMap(taskName, storeType, storeName);
 
         assertThat(tagMap.size(), equalTo(3));
+        boolean isMetricsLatest = builtInMetricsVersion.equals(StreamsConfig.METRICS_LATEST);
         assertThat(
-            tagMap.get(builtInMetricsVersion.equals(StreamsConfig.METRICS_LATEST) ? StreamsMetricsImpl.THREAD_ID_TAG
-                : StreamsMetricsImpl.THREAD_ID_TAG_0100_TO_23),
+            tagMap.get(isMetricsLatest ? StreamsMetricsImpl.THREAD_ID_TAG : StreamsMetricsImpl.THREAD_ID_TAG_0100_TO_23),
             equalTo(THREAD_NAME));
         assertThat(tagMap.get(StreamsMetricsImpl.TASK_ID_TAG), equalTo(taskName));
         assertThat(tagMap.get(storeType + "-" + StreamsMetricsImpl.STORE_ID_TAG), equalTo(storeName));
@@ -290,10 +290,9 @@ public class StreamsMetricsImplTest extends EasyMockSupport {
         final Map<String, String> tagMap = streamsMetrics.cacheLevelTagMap(taskName, storeName);
 
         assertThat(tagMap.size(), equalTo(3));
+        boolean isMetricsLatest = builtInMetricsVersion.equals(StreamsConfig.METRICS_LATEST);
         assertThat(
-            tagMap.get(
-                builtInMetricsVersion.equals(StreamsConfig.METRICS_LATEST) ? StreamsMetricsImpl.THREAD_ID_TAG
-                    : StreamsMetricsImpl.THREAD_ID_TAG_0100_TO_23),
+            tagMap.get(isMetricsLatest ? StreamsMetricsImpl.THREAD_ID_TAG : StreamsMetricsImpl.THREAD_ID_TAG_0100_TO_23),
             equalTo(Thread.currentThread().getName())
         );
         assertThat(tagMap.get(StreamsMetricsImpl.TASK_ID_TAG), equalTo(taskName));
