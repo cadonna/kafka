@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.PROCESSOR_NODE_ID_TAG;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.PROCESSOR_NODE_METRICS_GROUP;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.ROLLUP_VALUE;
 import static org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl.addAvgAndMaxLatencyToSensor;
@@ -169,8 +168,7 @@ public class ProcessorNode<K, V> {
 
             final String taskName = context.taskId().toString();
             final Map<String, String> tagMap = metrics.nodeLevelTagMap(context.taskId().toString(), processorNodeName);
-            final Map<String, String> allTagMap =
-                metrics.taskLevelTagMap(context.taskId().toString(), PROCESSOR_NODE_ID_TAG, ROLLUP_VALUE);
+            final Map<String, String> allTagMap = metrics.nodeLevelTagMap(context.taskId().toString(), ROLLUP_VALUE);
 
             nodeProcessTimeSensor = createTaskAndNodeLatencyAndThroughputSensors(
                 "process",
