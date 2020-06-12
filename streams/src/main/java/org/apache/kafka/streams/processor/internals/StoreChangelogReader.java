@@ -31,6 +31,7 @@ import org.apache.kafka.streams.errors.TaskCorruptedException;
 import org.apache.kafka.streams.processor.StateRestoreListener;
 import org.apache.kafka.streams.processor.TaskId;
 import org.apache.kafka.streams.processor.internals.ProcessorStateManager.StateStoreMetadata;
+import org.apache.kafka.streams.processor.internals.StreamThread.ProcessingMode;
 import org.slf4j.Logger;
 
 import java.time.Duration;
@@ -46,6 +47,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.apache.kafka.streams.processor.internals.ClientUtils.fetchCommittedOffsets;
+import static org.apache.kafka.streams.processor.internals.StreamThread.ProcessingMode.EXACTLY_ONCE_BETA;
 
 /**
  * ChangelogReader is created and maintained by the stream thread and used for both updating standby tasks and
@@ -201,6 +203,8 @@ public class StoreChangelogReader implements ChangelogReader {
 
     private long lastUpdateOffsetTime;
 
+    private final ProcessingMode processingMode;
+
     void setMainConsumer(final Consumer<byte[], byte[]> consumer) {
         this.mainConsumer = consumer;
     }
@@ -220,6 +224,7 @@ public class StoreChangelogReader implements ChangelogReader {
         this.updateOffsetIntervalMs = config.getLong(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG) == Long.MAX_VALUE ?
             DEFAULT_OFFSET_UPDATE_MS : config.getLong(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG);
         this.lastUpdateOffsetTime = 0L;
+        processingMode = StreamThread.processingMode(config);
 
         this.changelogs = new HashMap<>();
     }
@@ -564,6 +569,18 @@ public class StoreChangelogReader implements ChangelogReader {
             return Collections.emptyMap();
 
         try {
+            if (processingMode == EXACTLY_ONCE_BETA) {
+                // Before we start restoring, we need to make sure that there are no
+                // pending transactions.
+                // mainConsumer.committed() blocks until all pending transactions have come
+                // to an end.
+                // We cannot rely on the implicit call to committed() in the main consumer
+                // during poll(), because due to the asynchronous behavior of poll(),
+                // the poll() call may return and restoration start before the call to
+                // committed() was performed.
+                mainConsumer.committed(mainConsumer.assignment());
+            }
+
             return restoreConsumer.endOffsets(partitions);
         } catch (final TimeoutException e) {
             // if timeout exception gets thrown we just give up this time and retry in the next run loop
