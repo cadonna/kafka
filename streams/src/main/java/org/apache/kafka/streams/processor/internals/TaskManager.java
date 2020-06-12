@@ -35,6 +35,7 @@ import org.apache.kafka.streams.errors.StreamsException;
 import org.apache.kafka.streams.errors.TaskIdFormatException;
 import org.apache.kafka.streams.errors.TaskMigratedException;
 import org.apache.kafka.streams.processor.TaskId;
+import org.apache.kafka.streams.processor.internals.StreamThread.ProcessingMode;
 import org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl;
 import org.apache.kafka.streams.state.internals.OffsetCheckpoint;
 import org.slf4j.Logger;
@@ -149,6 +150,17 @@ public class TaskManager {
         mainConsumer.pause(mainConsumer.assignment());
 
         releaseLockedUnassignedTaskDirectories();
+
+        if (processingMode == EXACTLY_ONCE_BETA) {
+            // Before we start restoring, we need to make sure that there are no
+            // pending transactions.
+            // mainConsumer.committed() blocks until all pending transactions have come
+            // to an end.
+            // We cannot rely on the implicit call to committed() in the main consumer
+            // during poll(), because the poll() call may return and restoration start
+            // before the call to committed() is performed.
+            mainConsumer.committed(mainConsumer.assignment());
+        }
 
         rebalanceInProgress = false;
     }

@@ -564,7 +564,6 @@ public class StoreChangelogReader implements ChangelogReader {
             return Collections.emptyMap();
 
         try {
-            mainConsumer.committed(partitions);
             return restoreConsumer.endOffsets(partitions);
         } catch (final TimeoutException e) {
             // if timeout exception gets thrown we just give up this time and retry in the next run loop
