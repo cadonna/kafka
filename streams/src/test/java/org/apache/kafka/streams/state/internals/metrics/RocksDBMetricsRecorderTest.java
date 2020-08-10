@@ -52,11 +52,13 @@ import static org.powermock.api.easymock.PowerMock.verify;
 @RunWith(PowerMockRunner.class)
 @PrepareForTest({RocksDBMetrics.class, Sensor.class})
 public class RocksDBMetricsRecorderTest {
-    private final static String METRICS_SCOPE = "metrics-scope";
-    private final static String THREAD_ID = "thread-id";
-    private final static String STORE_NAME = "store-name";
-    private final static String SEGMENT_STORE_NAME_1 = "segment-store-name-1";
-    private final static String SEGMENT_STORE_NAME_2 = "segment-store-name-2";
+    private static final String METRICS_SCOPE = "metrics-scope";
+    private static final String THREAD_ID = "thread-id";
+    private static final TaskId TASK_ID1 = new TaskId(0, 0);
+    private static final TaskId TASK_ID2 = new TaskId(0, 1);
+    private static final String STORE_NAME = "store-name";
+    private static final String SEGMENT_STORE_NAME_1 = "segment-store-name-1";
+    private static final String SEGMENT_STORE_NAME_2 = "segment-store-name-2";
 
     private final RocksDB dbToAdd1 = mock(RocksDB.class);
     private final RocksDB dbToAdd2 = mock(RocksDB.class);
@@ -80,8 +82,6 @@ public class RocksDBMetricsRecorderTest {
 
     private final StreamsMetricsImpl streamsMetrics = niceMock(StreamsMetricsImpl.class);
     private final RocksDBMetricsRecordingTrigger recordingTrigger = mock(RocksDBMetricsRecordingTrigger.class);
-    private final TaskId taskId1 = new TaskId(0, 0);
-    private final TaskId taskId2 = new TaskId(0, 1);
 
     private final RocksDBMetricsRecorder recorder = new RocksDBMetricsRecorder(METRICS_SCOPE, THREAD_ID, STORE_NAME);
 
@@ -90,40 +90,40 @@ public class RocksDBMetricsRecorderTest {
         setUpMetricsStubMock();
         expect(streamsMetrics.rocksDBMetricsRecordingTrigger()).andStubReturn(recordingTrigger);
         replay(streamsMetrics);
-        recorder.init(streamsMetrics, taskId1);
+        recorder.init(streamsMetrics, TASK_ID1);
     }
 
     @Test
     public void shouldInitMetricsRecorder() {
         setUpMetricsMock();
 
-        recorder.init(streamsMetrics, taskId1);
+        recorder.init(streamsMetrics, TASK_ID1);
 
         verify(RocksDBMetrics.class);
-        assertThat(recorder.taskId(), is(taskId1));
+        assertThat(recorder.taskId(), is(TASK_ID1));
     }
 
     @Test
     public void shouldThrowIfMetricRecorderIsReInitialisedWithDifferentTask() {
         setUpMetricsStubMock();
-        recorder.init(streamsMetrics, taskId1);
+        recorder.init(streamsMetrics, TASK_ID1);
 
         assertThrows(
             IllegalStateException.class,
-            () -> recorder.init(streamsMetrics, taskId2)
+            () -> recorder.init(streamsMetrics, TASK_ID2)
         );
     }
 
     @Test
     public void shouldThrowIfMetricRecorderIsReInitialisedWithDifferentStreamsMetrics() {
         setUpMetricsStubMock();
-        recorder.init(streamsMetrics, taskId1);
+        recorder.init(streamsMetrics, TASK_ID1);
 
         assertThrows(
             IllegalStateException.class,
             () -> recorder.init(
                 new StreamsMetricsImpl(new Metrics(), "test-client", StreamsConfig.METRICS_LATEST, new MockTime()),
-                taskId1
+                    TASK_ID1
             )
         );
     }
@@ -357,7 +357,7 @@ public class RocksDBMetricsRecorderTest {
     private void setUpMetricsMock() {
         mockStatic(RocksDBMetrics.class);
         final RocksDBMetricContext metricsContext =
-            new RocksDBMetricContext(THREAD_ID, taskId1.toString(), METRICS_SCOPE, STORE_NAME);
+            new RocksDBMetricContext(THREAD_ID, TASK_ID1.toString(), METRICS_SCOPE, STORE_NAME);
         expect(RocksDBMetrics.bytesWrittenToDatabaseSensor(eq(streamsMetrics), eq(metricsContext)))
             .andReturn(bytesWrittenToDatabaseSensor);
         expect(RocksDBMetrics.bytesReadFromDatabaseSensor(eq(streamsMetrics), eq(metricsContext)))
@@ -382,13 +382,14 @@ public class RocksDBMetricsRecorderTest {
             .andReturn(numberOfOpenFilesSensor);
         expect(RocksDBMetrics.numberOfFileErrorsSensor(eq(streamsMetrics), eq(metricsContext)))
             .andReturn(numberOfFileErrorsSensor);
+        RocksDBMetrics.addNumEntriesActiveMemTableMetric(eq(streamsMetrics), eq(metricsContext), anyObject());
         replay(RocksDBMetrics.class);
     }
 
     private void setUpMetricsStubMock() {
         mockStatic(RocksDBMetrics.class);
         final RocksDBMetricContext metricsContext =
-            new RocksDBMetricContext(THREAD_ID, taskId1.toString(), METRICS_SCOPE, STORE_NAME);
+            new RocksDBMetricContext(THREAD_ID, TASK_ID1.toString(), METRICS_SCOPE, STORE_NAME);
         expect(RocksDBMetrics.bytesWrittenToDatabaseSensor(streamsMetrics, metricsContext))
             .andStubReturn(bytesWrittenToDatabaseSensor);
         expect(RocksDBMetrics.bytesReadFromDatabaseSensor(streamsMetrics, metricsContext))
@@ -413,6 +414,7 @@ public class RocksDBMetricsRecorderTest {
             .andStubReturn(numberOfOpenFilesSensor);
         expect(RocksDBMetrics.numberOfFileErrorsSensor(streamsMetrics, metricsContext))
             .andStubReturn(numberOfFileErrorsSensor);
+        RocksDBMetrics.addNumEntriesActiveMemTableMetric(eq(streamsMetrics), eq(metricsContext), anyObject());
         replay(RocksDBMetrics.class);
     }
 }
