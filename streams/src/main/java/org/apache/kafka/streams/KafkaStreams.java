@@ -42,6 +42,7 @@ import org.apache.kafka.streams.errors.StreamsException;
 import org.apache.kafka.streams.errors.TopologyException;
 import org.apache.kafka.streams.internals.ApiUtils;
 import org.apache.kafka.streams.internals.metrics.ClientMetrics;
+import org.apache.kafka.streams.internals.metrics.MetricsAggregations.ValuesProvider;
 import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.KTable;
 import org.apache.kafka.streams.kstream.Repartitioned;
@@ -88,6 +89,9 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.apache.kafka.streams.StreamsConfig.METRICS_RECORDING_LEVEL_CONFIG;
 import static org.apache.kafka.streams.internals.ApiUtils.prepareMillisCheckFailMsgPrefix;
@@ -379,6 +383,28 @@ public class KafkaStreams implements AutoCloseable {
                 throw new IllegalStateException("Can only set GlobalStateRestoreListener in CREATED state. " +
                     "Current state is: " + state);
             }
+        }
+    }
+
+    public <AGG, V> void aggregateMetrics(final String nameOfAggregation,
+                                          final String description,
+                                          final RecordingLevel recordingLevel,
+                                          final String groupOfMetricsToAggregate,
+                                          final String nameOfMetricsToAggregate,
+                                          final List<String> tagsForGrouping,
+                                          final Function<ValuesProvider<V>, AGG> aggregator) {
+        if (state == State.CREATED) {
+            streamsMetrics.metricsAggregationReporter().addAggregation(
+                nameOfAggregation,
+                description,
+                recordingLevel,
+                groupOfMetricsToAggregate,
+                nameOfMetricsToAggregate,
+                tagsForGrouping,
+                aggregator
+            );
+        } else {
+            throw new IllegalStateException("Can only add metrics aggregations in CREATED state. Current state is: " + state);
         }
     }
 
@@ -690,6 +716,7 @@ public class KafkaStreams implements AutoCloseable {
             config.getString(StreamsConfig.BUILT_IN_METRICS_VERSION_CONFIG),
             time
         );
+        metrics.addReporter(streamsMetrics.metricsAggregationReporter());
         ClientMetrics.addVersionMetric(streamsMetrics);
         ClientMetrics.addCommitIdMetric(streamsMetrics);
         ClientMetrics.addApplicationIdMetric(streamsMetrics, config.getString(StreamsConfig.APPLICATION_ID_CONFIG));
