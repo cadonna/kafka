@@ -35,6 +35,8 @@ import org.apache.kafka.common.metrics.stats.WindowedSum;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.StreamsMetrics;
+import org.apache.kafka.streams.internals.metrics.MetricsAggregations;
+import org.apache.kafka.streams.internals.metrics.StreamsMetricsAggregations;
 import org.apache.kafka.streams.state.internals.metrics.RocksDBMetricsRecordingTrigger;
 
 import java.util.Collections;
@@ -99,7 +101,7 @@ public class StreamsMetricsImpl implements StreamsMetrics {
     private final Map<String, Deque<String>> cacheLevelSensors = new HashMap<>();
     private final ConcurrentMap<String, Deque<String>> storeLevelSensors = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, Deque<MetricName>> storeLevelMetrics = new ConcurrentHashMap<>();
-
+    private StreamsMetricsAggregations metricsAggregations = null;
     private final RocksDBMetricsRecordingTrigger rocksDBMetricsRecordingTrigger;
 
     private static final String SENSOR_PREFIX_DELIMITER = ".";
@@ -190,6 +192,13 @@ public class StreamsMetricsImpl implements StreamsMetrics {
         return rocksDBMetricsRecordingTrigger;
     }
 
+    public StreamsMetricsAggregations metricsAggregationReporter() {
+        if (metricsAggregations == null) {
+            metricsAggregations = new StreamsMetricsAggregations(this, clientId);
+        }
+        return metricsAggregations;
+    }
+
     public <T> void addClientLevelImmutableMetric(final String name,
                                                   final String description,
                                                   final RecordingLevel recordingLevel,
@@ -207,6 +216,21 @@ public class StreamsMetricsImpl implements StreamsMetrics {
                                                 final RecordingLevel recordingLevel,
                                                 final Gauge<T> valueProvider) {
         final MetricName metricName = metrics.metricName(name, CLIENT_LEVEL_GROUP, description, clientLevelTagMap());
+        final MetricConfig metricConfig = new MetricConfig().recordLevel(recordingLevel);
+        synchronized (clientLevelMetrics) {
+            metrics.addMetric(metricName, metricConfig, valueProvider);
+            clientLevelMetrics.push(metricName);
+        }
+    }
+
+    public <T> void addClientLevelMutableMetric(final String name,
+                                                final String description,
+                                                final Map<String, String> tagMap,
+                                                final RecordingLevel recordingLevel,
+                                                final Gauge<T> valueProvider) {
+        final Map<String, String> clientTagMap = clientLevelTagMap();
+        clientTagMap.putAll(tagMap);
+        final MetricName metricName = metrics.metricName(name, CLIENT_LEVEL_GROUP, description, clientTagMap);
         final MetricConfig metricConfig = new MetricConfig().recordLevel(recordingLevel);
         synchronized (clientLevelMetrics) {
             metrics.addMetric(metricName, metricConfig, valueProvider);
