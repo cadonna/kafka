@@ -44,6 +44,7 @@ import static org.easymock.EasyMock.reset;
 import static org.easymock.EasyMock.verify;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertThrows;
 
 
 public class MetricsAggregationsTest {
@@ -349,6 +350,20 @@ public class MetricsAggregationsTest {
         metricsChanger.accept(Arrays.asList(changedMetric1, changedMetric2, changedMetric3));
 
         assertThat(metrics.get(0).metricValue(), is(2));
+    }
+
+    @Test
+    public void shouldThrowIfAMetricIsRemovedForWhichNoAgggregationGroupExists() {
+        mockMetricsAggregations.addAggregation(
+            "first aggregation for updated metric",
+            METRIC_NAME1.group(),
+            METRIC_NAME1.name(),
+            Arrays.asList(TAG1, TAG2),
+            metricRegistrar1
+        );
+        final KafkaMetric changedMetric = getMetric(METRIC_NAME1);
+
+        assertThrows(IllegalStateException.class, () -> mockMetricsAggregations.metricRemoval(changedMetric));
     }
 
     private KafkaMetric getMetric(final MetricName metricName) {

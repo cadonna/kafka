@@ -31,6 +31,29 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * A metrics reporter that adds and removes metrics to aggregations.
+ * <p>
+ * After users add specifications of aggregations to this reporter, every time a metric is added or modified, this
+ * reporter adds the metric to the aggregations the metric contributes to.
+ * Every time a metric is removed, the reporter removes the metric from the aggregations is was added to previously.
+ * <p>
+ * The first metric that is added to an aggregation triggers a registration callback that users can use to register
+ * the metric that records the aggregation to their own metric framework.
+ * Similarly, removal of the last metric of an aggregation triggers a deregistration callback that users can use to
+ * deregisters the metric that records the aggregation from the their metric framework.
+ * <p>
+ * A registration callback returns a values provider which allows to iterate over all values of the metrics that
+ * contribute to the aggregation.
+ * This values provider can be used to compute the actual aggregation that is recorded by the metric that reports the
+ * aggregation.
+ * <p>
+ * The added aggregations may specify a list of tags according to which the metrics to aggregate are grouped for
+ * aggregation.
+ * <p>
+ * This reporter needs to be extended and the child class can be added to the {@link StreamsConfig#METRIC_REPORTER_CLASSES_CONFIG}.
+ * The reporter is automatically instantiated by the {@link KafkaStreams} object.
+ */
 public abstract class MetricsAggregations implements MetricsReporter {
 
     private static class MetricToAggregateSpec {
@@ -121,17 +144,81 @@ public abstract class MetricsAggregations implements MetricsReporter {
         void update(final KafkaMetric metric,
                     final AggregationSpec<?, ?> aggregationSpec,
                     final Map<String, String> tags,
-                    final MetricName metricNameForAggregation);
+                    final MetricName metricNameForAggregationGroup);
     }
 
     private final Map<MetricToAggregateSpec, List<AggregationSpec<?, ?>>> metricSpecsToAggregationSpecs = new HashMap<>();
-    private final Map<MetricName, Map<String, ValuesProvider<?>>> metricsToValuesProviders = new HashMap<>();
+    private final Map<MetricName, Map<String, ValuesProvider<?>>> metricsAggregationGroupsToValuesProviders = new HashMap<>();
 
+    /**
+     * Adds all currently existing metrics to their aggregations if any exist.
+     *
+     * @param metrics All currently existing metrics
+     */
     @Override
     public void init(final List<KafkaMetric> metrics) {
         metrics.forEach(this::metricChange);
     }
 
+    /**
+     * Adds an aggregation to the reporter.
+     *
+     * An aggregation has a name. The metrics that contribute to the aggregate are specified by their name and the group
+     * they belong to.
+     * For example, an aggregation that sums up the memtable sizes of the RocksDB state stores aggregates metrics
+     * with name "size-all-mem-tables" and group "stream-state-metrics".
+     * An aggregation can also specify a list of tags by which to group metrics for the aggregation.
+     * For example, to aggregate metrics grouped by stream thread ID and task ID, the list of tags needs to contain
+     * "task-id" and "thread-id".
+     * Each aggregation has a registration and deregistration callback that is used to add and remove the metric that
+     * records the aggregation from the users' metric framework.
+     * The registration callback returns a {@link ValuesProvider} that can be used to iterate over all metrics that
+     * are added to this aggregation.
+     *
+     * <p>
+     * An example for the specification of an aggregation (calls to the metrics framework are fictive):
+     * <pre>{@code
+     * String nameOfAggregation = "size-all-mem-tables-total";
+     * metricsAggregations.addAggregation(
+     *     nameOfAggregation,
+     *     "stream-state-metrics",
+     *     "size-all-mem-tables",
+     *     Arrays.asList("thread-id"),
+     *     new MetricRegistrar<BigInteger, BigInteger>() {
+     *         @Override
+     *         public ValuesProvider<Integer> register(final Map<String, String> tags) {
+     *             final ValuesProvider<Integer> valuesProvider = new ValuesProvider<>();
+     *             metricsRegistry.register(
+     *                 "nameOfAggregation",
+     *                 (now) -> {
+     *                     BigInteger aggregate = 0;
+     *                     for (final int value : valuesProvider) {
+     *                         aggregate = aggregate.add(value);
+     *                     }
+     *                     return aggregate;
+     *                 }
+     *             );
+     *             return valuesProvider;
+     *         }
+     *
+     *         @Override
+     *         public void deregister() {
+     *             metricsRegistry.deregister(nameOfAggregation);
+     *         }
+     *     }
+     * );
+     * }</pre>
+     * This aggregation sums up the sizes of the memtables in RocksDB state stores that exist in the Kafka Streams
+     * client grouped by stream thread ID.
+     *
+     * @param nameOfAggregation          name of the aggregation
+     * @param groupOfMetricsToAggregate  group of the metrics to aggregate
+     * @param nameOfMetricsToAggregate   name of the metrics to aggregate
+     * @param tagsForGrouping            tags for grouping
+     * @param metricRegistrar            (de-)registration callback
+     * @param <AGG>                      type of the aggregation
+     * @param <V>                        type of the values recorded by the metrics that contribute to the aggregation
+     */
     public <AGG, V> void addAggregation(final String nameOfAggregation,
                                         final String groupOfMetricsToAggregate,
                                         final String nameOfMetricsToAggregate,
@@ -156,53 +243,73 @@ public abstract class MetricsAggregations implements MetricsReporter {
                     for (final String tagForGrouping : aggregationSpec.tagsForGrouping) {
                         tags.put(tagForGrouping, metricTagMap.getOrDefault(tagForGrouping, "unknown"));
                     }
-                    final MetricName metricNameForAggregation = new MetricName(
+                    final MetricName metricNameForAggregationGroup = new MetricName(
                         metric.metricName().name(),
                         metric.metricName().group(),
                         "",
                         tags
                     );
-                    updater.update(metric, aggregationSpec, tags, metricNameForAggregation);
+                    updater.update(metric, aggregationSpec, tags, metricNameForAggregationGroup);
                 }
             }
         }
     }
 
+    /**
+     * Adds a metric to the aggregations it contributes to if any exist.
+     */
     @Override
     public void metricChange(final KafkaMetric metric) {
         updateAggregationMetrics(metric, this::addMetric);
     }
 
-    private void addMetric(final KafkaMetric metric, final AggregationSpec<?, ?> aggregationSpec, final Map<String, String> tags, final MetricName metricNameForAggregation) {
-        metricsToValuesProviders
-            .computeIfAbsent(metricNameForAggregation, (ignored) -> new HashMap<>())
+    private synchronized void addMetric(final KafkaMetric metric,
+                                        final AggregationSpec<?, ?> aggregationSpec,
+                                        final Map<String, String> tags,
+                                        final MetricName metricNameForAggregationGroup) {
+        metricsAggregationGroupsToValuesProviders
+            .computeIfAbsent(metricNameForAggregationGroup, (ignored) -> new HashMap<>())
             .computeIfAbsent(
                 aggregationSpec.name,
                 (ignored) -> aggregationSpec.metricRegistrar.register(Collections.unmodifiableMap(tags))
             ).addMetric(metric.metricName(), metric);
     }
 
+    /**
+     * Removes a metric from the aggregations it contributes to if any exist.
+     */
     @Override
     public void metricRemoval(final KafkaMetric metric) {
         updateAggregationMetrics(metric, this::removeMetric);
     }
 
-    private void removeMetric(final KafkaMetric metric, final AggregationSpec<?, ?> aggregationSpec, final Map<String, String> tags, final MetricName metricNameForAggregation) {
-        final Map<String, ValuesProvider<?>> aggregationNamesToValuesProvider = metricsToValuesProviders
+    private synchronized void removeMetric(final KafkaMetric metric,
+                                           final AggregationSpec<?, ?> aggregationSpec,
+                                           final Map<String, String> tags,
+                                           final MetricName metricNameForAggregationGroup) {
+        final Map<String, ValuesProvider<?>> aggregationNamesToValuesProvider = metricsAggregationGroupsToValuesProviders
             .computeIfAbsent(
-                metricNameForAggregation,
-                (ignored) -> {throw new IllegalStateException("no aggregation metric found");}
+                metricNameForAggregationGroup,
+                (ignored) -> {
+                    throw new IllegalStateException("No aggregation group found for metric name "
+                        + metricNameForAggregationGroup + ". This is a bug in Kafka Streams." +
+                        "Please open a bug report under https://issues.apache.org/jira/projects/KAFKA/issues");
+                }
             );
         final ValuesProvider<?> valuesProvider = aggregationNamesToValuesProvider.computeIfAbsent(
             aggregationSpec.name,
-            (ignored) -> {throw new IllegalStateException("no values provider found");}
+            (ignored) -> {
+                throw new IllegalStateException("No values provider found for aggregation "
+                    + aggregationSpec.name + ". This is a bug in Kafka Streams." +
+                    "Please open a bug report under https://issues.apache.org/jira/projects/KAFKA/issues");
+            }
         );
         valuesProvider.removeMetric(metric.metricName());
         if (valuesProvider.isEmpty()) {
             aggregationSpec.metricRegistrar.deregister();
             aggregationNamesToValuesProvider.remove(aggregationSpec.name);
             if (aggregationNamesToValuesProvider.isEmpty()) {
-                metricsToValuesProviders.remove(metricNameForAggregation);
+                metricsAggregationGroupsToValuesProviders.remove(metricNameForAggregationGroup);
             }
         }
     }
