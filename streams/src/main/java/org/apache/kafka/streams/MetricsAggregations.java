@@ -1,4 +1,20 @@
-package org.apache.kafka.streams.internals.metrics;
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.apache.kafka.streams;
 
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
@@ -43,15 +59,15 @@ public abstract class MetricsAggregations implements MetricsReporter {
 
     private static class AggregationSpec<AGG, V> {
         public final String name;
-        public final List<String> tagsForGrouping;
-        public final MetricsRegistrar<AGG, V> metricsRegistrar;
+        public final Collection<String> tagsForGrouping;
+        public final MetricRegistrar<AGG, V> metricRegistrar;
 
         public AggregationSpec(final String name,
-                               final List<String> tagsForGrouping,
-                               final MetricsRegistrar<AGG, V> metricsRegistrar) {
+                               final Collection<String> tagsForGrouping,
+                               final MetricRegistrar<AGG, V> metricRegistrar) {
             this.name = name;
             this.tagsForGrouping = tagsForGrouping;
-            this.metricsRegistrar = metricsRegistrar;
+            this.metricRegistrar = metricRegistrar;
         }
     }
 
@@ -96,7 +112,7 @@ public abstract class MetricsAggregations implements MetricsReporter {
         }
     }
 
-    public interface MetricsRegistrar<AGG, V> {
+    public interface MetricRegistrar<AGG, V> {
         ValuesProvider<V> register(final Map<String, String> tags);
         void deregister();
     }
@@ -120,10 +136,10 @@ public abstract class MetricsAggregations implements MetricsReporter {
                                         final String groupOfMetricsToAggregate,
                                         final String nameOfMetricsToAggregate,
                                         final List<String> tagsForGrouping,
-                                        final MetricsRegistrar<AGG, V> metricsRegistrar) {
+                                        final MetricRegistrar<AGG, V> metricRegistrar) {
         metricSpecsToAggregationSpecs.computeIfAbsent(
             new MetricToAggregateSpec(nameOfMetricsToAggregate, groupOfMetricsToAggregate), (ignored) -> new LinkedList<>()
-        ).add(new AggregationSpec<>(nameOfAggregation, tagsForGrouping, metricsRegistrar));
+        ).add(new AggregationSpec<>(nameOfAggregation, tagsForGrouping, metricRegistrar));
     }
 
     private void updateAggregationMetrics(final KafkaMetric metric,
@@ -162,7 +178,7 @@ public abstract class MetricsAggregations implements MetricsReporter {
             .computeIfAbsent(metricNameForAggregation, (ignored) -> new HashMap<>())
             .computeIfAbsent(
                 aggregationSpec.name,
-                (ignored) -> aggregationSpec.metricsRegistrar.register(Collections.unmodifiableMap(tags))
+                (ignored) -> aggregationSpec.metricRegistrar.register(Collections.unmodifiableMap(tags))
             ).addMetric(metric.metricName(), metric);
     }
 
@@ -183,7 +199,7 @@ public abstract class MetricsAggregations implements MetricsReporter {
         );
         valuesProvider.removeMetric(metric.metricName());
         if (valuesProvider.isEmpty()) {
-            aggregationSpec.metricsRegistrar.deregister();
+            aggregationSpec.metricRegistrar.deregister();
             aggregationNamesToValuesProvider.remove(aggregationSpec.name);
             if (aggregationNamesToValuesProvider.isEmpty()) {
                 metricsToValuesProviders.remove(metricNameForAggregation);
