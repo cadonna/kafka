@@ -17,9 +17,7 @@
 package org.apache.kafka.streams.integration;
 
 import org.apache.kafka.common.Metric;
-import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.metrics.Sensor;
-import org.apache.kafka.common.metrics.Sensor.RecordingLevel;
 import org.apache.kafka.common.serialization.IntegerSerializer;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -33,7 +31,6 @@ import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.integration.utils.EmbeddedKafkaCluster;
 import org.apache.kafka.streams.integration.utils.IntegrationTestUtils;
-import org.apache.kafka.streams.MetricsAggregations.ValuesProvider;
 import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.kstream.Produced;
@@ -55,13 +52,11 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
 
-import java.math.BigInteger;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.apache.kafka.streams.integration.utils.IntegrationTestUtils.safeUniqueTestName;
@@ -239,8 +234,7 @@ public class MetricsIntegrationTest {
     @Before
     public void before() throws InterruptedException {
         builder = new StreamsBuilder();
-        CLUSTER.createTopic(STREAM_OUTPUT_1, 2, 1);
-        CLUSTER.createTopics(STREAM_INPUT, STREAM_OUTPUT_2, STREAM_OUTPUT_3, STREAM_OUTPUT_4);
+        CLUSTER.createTopics(STREAM_INPUT, STREAM_OUTPUT_1, STREAM_OUTPUT_2, STREAM_OUTPUT_3, STREAM_OUTPUT_4);
 
         final String safeTestName = safeUniqueTestName(getClass(), testName);
         appId = "app-" + safeTestName;
@@ -349,11 +343,11 @@ public class MetricsIntegrationTest {
         builder.stream(STREAM_INPUT, Consumed.with(Serdes.Integer(), Serdes.String()))
             .to(STREAM_OUTPUT_1, Produced.with(Serdes.Integer(), Serdes.String()));
         builder.table(STREAM_OUTPUT_1,
-                      Materialized.as(Stores.inMemoryKeyValueStore(MY_STORE_PERSISTENT_KEY_VALUE)).withCachingEnabled())
+                      Materialized.as(Stores.inMemoryKeyValueStore(MY_STORE_IN_MEMORY)).withCachingEnabled())
             .toStream()
             .to(STREAM_OUTPUT_2);
         builder.table(STREAM_OUTPUT_2,
-                      Materialized.as(Stores.persistentKeyValueStore(MY_STORE_IN_MEMORY)).withCachingEnabled())
+                      Materialized.as(Stores.persistentKeyValueStore(MY_STORE_PERSISTENT_KEY_VALUE)).withCachingEnabled())
             .toStream()
             .to(STREAM_OUTPUT_3);
         builder.table(STREAM_OUTPUT_3,
