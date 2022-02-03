@@ -50,7 +50,6 @@ import org.apache.kafka.streams.processor.internals.StateDirectory;
 import org.apache.kafka.streams.processor.internals.StreamThread;
 import org.apache.kafka.streams.processor.internals.StreamsMetadataState;
 import org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl;
-import org.apache.kafka.streams.processor.internals.testutil.LogCaptureAppender;
 import org.apache.kafka.streams.state.KeyValueStore;
 import org.apache.kafka.streams.state.StoreBuilder;
 import org.apache.kafka.streams.state.Stores;
@@ -58,7 +57,6 @@ import org.apache.kafka.streams.state.internals.metrics.RocksDBMetricsRecordingT
 import org.apache.kafka.test.MockClientSupplier;
 import org.apache.kafka.test.MockMetricsReporter;
 import org.apache.kafka.test.MockProcessorSupplier;
-import org.apache.kafka.test.MockRocksDbConfigSetter;
 import org.apache.kafka.test.TestUtils;
 import org.easymock.Capture;
 import org.easymock.EasyMock;
