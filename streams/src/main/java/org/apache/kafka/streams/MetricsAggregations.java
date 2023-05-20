@@ -122,15 +122,15 @@ public abstract class MetricsAggregations implements MetricsReporter {
             return new ValueIterator(Collections.unmodifiableCollection(metricsToAggregate.values()));
         }
 
-        public void addMetric(final MetricName metricName, final Metric metric) {
+        private void addMetric(final MetricName metricName, final Metric metric) {
             metricsToAggregate.put(metricName, metric);
         }
 
-        public void removeMetric(final MetricName metricName) {
+        private void removeMetric(final MetricName metricName) {
             metricsToAggregate.remove(metricName);
         }
 
-        public boolean isEmpty() {
+        private boolean isEmpty() {
             return metricsToAggregate.isEmpty();
         }
     }
@@ -210,20 +210,19 @@ public abstract class MetricsAggregations implements MetricsReporter {
      * }</pre>
      * This aggregation sums up the sizes of the memtables in RocksDB state stores that exist in the Kafka Streams
      * client grouped by stream thread ID.
-     *
+     *  @param <AGG>                      type of the aggregation
+     * @param <V>                        type of the values recorded by the metrics that contribute to the aggregation
      * @param nameOfAggregation          name of the aggregation
      * @param groupOfMetricsToAggregate  group of the metrics to aggregate
      * @param nameOfMetricsToAggregate   name of the metrics to aggregate
      * @param tagsForGrouping            tags for grouping
      * @param metricRegistrar            (de-)registration callback
-     * @param <AGG>                      type of the aggregation
-     * @param <V>                        type of the values recorded by the metrics that contribute to the aggregation
      */
-    public <AGG, V> void addAggregation(final String nameOfAggregation,
-                                        final String groupOfMetricsToAggregate,
-                                        final String nameOfMetricsToAggregate,
-                                        final List<String> tagsForGrouping,
-                                        final MetricRegistrar<AGG, V> metricRegistrar) {
+    protected <AGG, V> void addAggregation(final String nameOfAggregation,
+                                           final String groupOfMetricsToAggregate,
+                                           final String nameOfMetricsToAggregate,
+                                           final Collection<String> tagsForGrouping,
+                                           final MetricRegistrar<AGG, V> metricRegistrar) {
         metricSpecsToAggregationSpecs.computeIfAbsent(
             new MetricToAggregateSpec(nameOfMetricsToAggregate, groupOfMetricsToAggregate), (ignored) -> new LinkedList<>()
         ).add(new AggregationSpec<>(nameOfAggregation, tagsForGrouping, metricRegistrar));

@@ -42,8 +42,8 @@ import static org.easymock.EasyMock.mock;
 import static org.easymock.EasyMock.replay;
 import static org.easymock.EasyMock.reset;
 import static org.easymock.EasyMock.verify;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThrows;
 
 
@@ -91,7 +91,7 @@ public class MetricsAggregationsTest {
     private final MetricRegistrar<Long, Integer> metricRegistrar2 = mock(MetricRegistrar.class);
     private final MetricRegistrar<Long, Integer> metricRegistrar3 = mock(MetricRegistrar.class);
 
-    public static class MockMetricsAggregations extends MetricsAggregations {
+    public static class TestMetricsAggregations extends MetricsAggregations {
 
         @Override
         public void close() {
@@ -101,16 +101,16 @@ public class MetricsAggregationsTest {
         public void configure(final Map<String, ?> configs) {
         }
     }
-    final MockMetricsAggregations mockMetricsAggregations = new MockMetricsAggregations();
+    MetricsAggregations metricsAggregations = new TestMetricsAggregations();
 
     @Test
     public void shouldNotRegisterOrAddAnythingIfNoAggregationAdded() {
-        shouldNotDoAnythingIfNoAggregationAdded(mockMetricsAggregations::metricChange);
+        shouldNotDoAnythingIfNoAggregationAdded(metricsAggregations::metricChange);
     }
 
     @Test
     public void shouldNotDeregisterOrRemoveAnythingIfNoAggregationAdded() {
-        shouldNotDoAnythingIfNoAggregationAdded(mockMetricsAggregations::metricRemoval);
+        shouldNotDoAnythingIfNoAggregationAdded(metricsAggregations::metricRemoval);
     }
 
     private void shouldNotDoAnythingIfNoAggregationAdded(final Consumer<KafkaMetric> metricUpdate) {
@@ -124,36 +124,47 @@ public class MetricsAggregationsTest {
 
     @Test
     public void shouldNotRegisterOrAddAnythingIfNoAggregationsAddedForChangedMetric() {
-        shouldNotDoAnythingIfNoAggregationsAddedForUpdatedMetric(mockMetricsAggregations::metricChange);
+        setupShouldNotRegisterOrAddAnythingIfNoAggregationsAddedForUpdatedMetric();
+        shouldNotDoAnythingIfNoAggregationsAddedForUpdatedMetric(metricsAggregations::metricChange);
     }
 
     @Test
     public void shouldNotDeregisterOrRemoveAnythingIfNoAggregationsAddedForRemovedMetric() {
-        shouldNotDoAnythingIfNoAggregationsAddedForUpdatedMetric(mockMetricsAggregations::metricRemoval);
+        setupShouldNotRegisterOrAddAnythingIfNoAggregationsAddedForUpdatedMetric();
+        shouldNotDoAnythingIfNoAggregationsAddedForUpdatedMetric(metricsAggregations::metricRemoval);
+    }
+
+    private void setupShouldNotRegisterOrAddAnythingIfNoAggregationsAddedForUpdatedMetric() {
+        metricsAggregations = new TestMetricsAggregations() {
+            @Override
+            public void configure(final Map<String, ?> configs) {
+                addAggregation(
+                    "aggregation for metrics with different group and name as updated metric",
+                    METRIC_NAME3.group(),
+                    METRIC_NAME3.name(),
+                    Collections.emptyList(),
+                    metricRegistrar1
+                );
+                addAggregation(
+                    "aggregation for metrics with different name but equal group as updated metric",
+                    METRIC_NAME1.group(),
+                    METRIC_NAME3.name(),
+                    Collections.emptyList(),
+                    metricRegistrar1
+                );
+                addAggregation(
+                    "aggregation for metrics with different group but equal name as updated metric",
+                    METRIC_NAME3.group(),
+                    METRIC_NAME1.name(),
+                    Collections.emptyList(),
+                    metricRegistrar1
+                );
+            }
+        };
+        metricsAggregations.configure(Collections.emptyMap());
     }
 
     private void shouldNotDoAnythingIfNoAggregationsAddedForUpdatedMetric(final Consumer<KafkaMetric> metricUpdate) {
-        mockMetricsAggregations.addAggregation(
-            "aggregation for metrics with different group and name as updated metric",
-            METRIC_NAME3.group(),
-            METRIC_NAME3.name(),
-            Collections.emptyList(),
-            metricRegistrar1
-        );
-        mockMetricsAggregations.addAggregation(
-            "aggregation for metrics with different name but equal group as updated metric",
-            METRIC_NAME1.group(),
-            METRIC_NAME3.name(),
-            Collections.emptyList(),
-            metricRegistrar1
-        );
-        mockMetricsAggregations.addAggregation(
-            "aggregation for metrics with different group but equal name as updated metric",
-            METRIC_NAME3.group(),
-            METRIC_NAME1.name(),
-            Collections.emptyList(),
-            metricRegistrar1
-        );
         final KafkaMetric changedMetric = getMetric(METRIC_NAME1);
         replay(metricRegistrar1);
 
@@ -164,27 +175,33 @@ public class MetricsAggregationsTest {
 
     @Test
     public void shouldRegisterAggregationMetrics() {
-        mockMetricsAggregations.addAggregation(
-            "first aggregation for updated metric",
-            METRIC_NAME1.group(),
-            METRIC_NAME1.name(),
-            Arrays.asList(TAG1, TAG2),
-            metricRegistrar1
-        );
-        mockMetricsAggregations.addAggregation(
-            "second aggregation for updated metric",
-            METRIC_NAME1.group(),
-            METRIC_NAME1.name(),
-            Collections.singletonList(TAG2),
-            metricRegistrar2
-        );
-        mockMetricsAggregations.addAggregation(
-            "aggregation not for updated metrics",
-            METRIC_NAME3.group(),
-            METRIC_NAME3.name(),
-            Collections.singletonList(TAG2),
-            metricRegistrar3
-        );
+        metricsAggregations = new TestMetricsAggregations() {
+            @Override
+            public void configure(final Map<String, ?> configs) {
+                addAggregation(
+                    "first aggregation for updated metric",
+                    METRIC_NAME1.group(),
+                    METRIC_NAME1.name(),
+                    Arrays.asList(TAG1, TAG2),
+                    metricRegistrar1
+                );
+                addAggregation(
+                    "second aggregation for updated metric",
+                    METRIC_NAME1.group(),
+                    METRIC_NAME1.name(),
+                    Collections.singletonList(TAG2),
+                    metricRegistrar2
+                );
+                addAggregation(
+                    "aggregation not for updated metrics",
+                    METRIC_NAME3.group(),
+                    METRIC_NAME3.name(),
+                    Collections.singletonList(TAG2),
+                    metricRegistrar3
+                );
+            }
+        };
+        metricsAggregations.configure(Collections.emptyMap());
         final KafkaMetric changedMetric = getMetric(METRIC_NAME1);
         final Map<String, String> groupTags1 = mkMap(mkEntry(TAG1, TAGS1.get(TAG1)), mkEntry(TAG2, TAGS1.get(TAG2)));
         final Map<String, String> groupTags2 = mkMap(mkEntry(TAG2, TAGS1.get(TAG2)));
@@ -192,178 +209,223 @@ public class MetricsAggregationsTest {
         expect(metricRegistrar2.register(groupTags2)).andReturn(new ValuesProvider<>());
         replay(metricRegistrar1, metricRegistrar2, metricRegistrar3);
 
-        mockMetricsAggregations.metricChange(changedMetric);
+        metricsAggregations.metricChange(changedMetric);
 
         verify(metricRegistrar1, metricRegistrar2, metricRegistrar3);
     }
 
     @Test
     public void shouldRegisterAggregationMetricOnce() {
-        mockMetricsAggregations.addAggregation(
-            AGGREGATION_NAME1,
-            METRIC_NAME1.group(),
-            METRIC_NAME1.name(),
-            Arrays.asList(TAG1, TAG2),
-            metricRegistrar1
-        );
+        metricsAggregations = new TestMetricsAggregations() {
+            @Override
+            public void configure(final Map<String, ?> configs) {
+                addAggregation(
+                    AGGREGATION_NAME1,
+                    METRIC_NAME1.group(),
+                    METRIC_NAME1.name(),
+                    Arrays.asList(TAG1, TAG2),
+                    metricRegistrar1
+                );
+            }
+        };
+        metricsAggregations.configure(Collections.emptyMap());
         final KafkaMetric changedMetric1 = getMetric(METRIC_NAME1);
         final KafkaMetric changedMetric2 = getMetric(METRIC_NAME2);
         final Map<String, String> groupTags1 = mkMap(mkEntry(TAG1, TAGS1.get(TAG1)), mkEntry(TAG2, TAGS1.get(TAG2)));
         expect(metricRegistrar1.register(groupTags1)).andReturn(new ValuesProvider<>());
         replay(metricRegistrar1);
 
-        mockMetricsAggregations.metricChange(changedMetric1);
-        mockMetricsAggregations.metricChange(changedMetric2);
+        metricsAggregations.metricChange(changedMetric1);
+        metricsAggregations.metricChange(changedMetric2);
 
         verify(metricRegistrar1);
     }
 
     @Test
     public void shouldDeregisterAggregationMetrics() {
-        mockMetricsAggregations.addAggregation(
-            "first aggregation for updated metric",
-            METRIC_NAME1.group(),
-            METRIC_NAME1.name(),
-            Arrays.asList(TAG1, TAG2),
-            metricRegistrar1
-        );
-        mockMetricsAggregations.addAggregation(
-            "second aggregation for updated metric",
-            METRIC_NAME1.group(),
-            METRIC_NAME1.name(),
-            Arrays.asList(TAG1, TAG2, TAG3),
-            metricRegistrar2
-        );
-        mockMetricsAggregations.addAggregation(
-            "aggregation not for updated metrics",
-            METRIC_NAME3.group(),
-            METRIC_NAME3.name(),
-            Collections.singletonList(TAG2),
-            metricRegistrar3
-        );
+        metricsAggregations = new TestMetricsAggregations() {
+            @Override
+            public void configure(final Map<String, ?> configs) {
+                addAggregation(
+                    "first aggregation for updated metric",
+                    METRIC_NAME1.group(),
+                    METRIC_NAME1.name(),
+                    Arrays.asList(TAG1, TAG2),
+                    metricRegistrar1
+                );
+                addAggregation(
+                    "second aggregation for updated metric",
+                    METRIC_NAME1.group(),
+                    METRIC_NAME1.name(),
+                    Arrays.asList(TAG1, TAG2, TAG3),
+                    metricRegistrar2
+                );
+                addAggregation(
+                    "aggregation not for updated metrics",
+                    METRIC_NAME3.group(),
+                    METRIC_NAME3.name(),
+                    Collections.singletonList(TAG2),
+                    metricRegistrar3
+                );
+            }
+        };
+        metricsAggregations.configure(Collections.emptyMap());
         final KafkaMetric changedMetric = getMetric(METRIC_NAME1);
         expect(metricRegistrar1.register(anyObject())).andReturn(new ValuesProvider<>());
         expect(metricRegistrar2.register(anyObject())).andReturn(new ValuesProvider<>());
         metricRegistrar1.deregister();
         metricRegistrar2.deregister();
         replay(metricRegistrar1, metricRegistrar2, metricRegistrar3);
-        mockMetricsAggregations.metricChange(changedMetric);
+        metricsAggregations.metricChange(changedMetric);
 
-        mockMetricsAggregations.metricRemoval(changedMetric);
+        metricsAggregations.metricRemoval(changedMetric);
 
         verify(metricRegistrar1, metricRegistrar2, metricRegistrar3);
     }
 
     @Test
     public void shouldDeregisterAggregationMetricOnlyWhenLastMetricIsRemovedFromAggregation() {
-        mockMetricsAggregations.addAggregation(
-            AGGREGATION_NAME1,
-            METRIC_NAME1.group(),
-            METRIC_NAME1.name(),
-            Arrays.asList(TAG1, TAG2),
-            metricRegistrar1
-        );
+        metricsAggregations = new TestMetricsAggregations() {
+            @Override
+            public void configure(final Map<String, ?> configs) {
+                addAggregation(
+                    AGGREGATION_NAME1,
+                    METRIC_NAME1.group(),
+                    METRIC_NAME1.name(),
+                    Arrays.asList(TAG1, TAG2),
+                    metricRegistrar1
+                );
+            }
+        };
+        metricsAggregations.configure(Collections.emptyMap());
         final KafkaMetric changedMetric1 = getMetric(METRIC_NAME1);
         final KafkaMetric changedMetric2 = getMetric(METRIC_NAME2);
         expect(metricRegistrar1.register(anyObject())).andReturn(new ValuesProvider<>());
         replay(metricRegistrar1);
-        mockMetricsAggregations.metricChange(changedMetric1);
-        mockMetricsAggregations.metricChange(changedMetric2);
+        metricsAggregations.metricChange(changedMetric1);
+        metricsAggregations.metricChange(changedMetric2);
 
-        mockMetricsAggregations.metricRemoval(changedMetric2);
+        metricsAggregations.metricRemoval(changedMetric2);
         verify(metricRegistrar1);
 
         reset(metricRegistrar1);
         metricRegistrar1.deregister();
         replay(metricRegistrar1);
-        mockMetricsAggregations.metricRemoval(changedMetric1);
+        metricsAggregations.metricRemoval(changedMetric1);
         verify(metricRegistrar1);
     }
 
     @Test
     public void shouldRegisterAggregationMetricsWithUnknownTag() {
         final String unknownTag = "unknown-tag";
-        mockMetricsAggregations.addAggregation(
-            AGGREGATION_NAME1,
-            METRIC_NAME1.group(),
-            METRIC_NAME1.name(),
-            Collections.singletonList(unknownTag),
-            metricRegistrar1
-        );
+        metricsAggregations = new TestMetricsAggregations() {
+            @Override
+            public void configure(final Map<String, ?> configs) {
+                addAggregation(
+                    AGGREGATION_NAME1,
+                    METRIC_NAME1.group(),
+                    METRIC_NAME1.name(),
+                    Collections.singletonList(unknownTag),
+                    metricRegistrar1
+                );
+            }
+        };
+        metricsAggregations.configure(Collections.emptyMap());
         final KafkaMetric changedMetric = getMetric(METRIC_NAME1);
         final Map<String, String> groupTags = mkMap(mkEntry("unknown-tag", "unknown"));
         expect(metricRegistrar1.register(groupTags)).andReturn(new ValuesProvider<>());
         replay(metricRegistrar1);
 
-        mockMetricsAggregations.metricChange(changedMetric);
+        metricsAggregations.metricChange(changedMetric);
 
         verify(metricRegistrar1);
     }
 
     @Test
     public void shouldAddMetricsToValuesProviderForAggregation() {
+        final List<Metric> aggregationMetrics = new ArrayList<>();
+        setupShouldAddMultipleMetricsToValuesProviderForAggregation(aggregationMetrics);
         shouldAddMultipleMetricsToValuesProviderForAggregation(
-            (metrics) -> metrics.forEach(mockMetricsAggregations::metricChange));
+            aggregationMetrics,
+            metrics -> metrics.forEach(metricsAggregations::metricChange)
+        );
     }
 
     @Test
     public void shouldAddMetricsToValuesProviderForAggregationDuringInit() {
-        shouldAddMultipleMetricsToValuesProviderForAggregation(mockMetricsAggregations::init);
+        final List<Metric> aggregationMetrics = new ArrayList<>();
+        setupShouldAddMultipleMetricsToValuesProviderForAggregation(aggregationMetrics);
+        shouldAddMultipleMetricsToValuesProviderForAggregation(aggregationMetrics, metricsAggregations::init);
     }
 
-    private void shouldAddMultipleMetricsToValuesProviderForAggregation(final Consumer<List<KafkaMetric>> metricsChanger) {
-        final List<Metric> metrics = new ArrayList<>();
-        mockMetricsAggregations.addAggregation(
-            AGGREGATION_NAME1,
-            METRIC_NAME1.group(),
-            METRIC_NAME1.name(),
-            Collections.emptyList(),
-            new MetricRegistrar<Integer, Integer>() {
-                @Override
-                public ValuesProvider<Integer> register(final Map<String, String> tags) {
-                    final ValuesProvider<Integer> valuesProvider = new ValuesProvider<>();
-                    metrics.add(new KafkaMetric(
-                        new Object(),
-                        new MetricName(AGGREGATION_NAME1, "", "", Collections.emptyMap()),
-                        (Gauge<Integer>) (config, now) -> {
-                            int aggregate = 0;
-                            for (final int value : valuesProvider) {
-                                aggregate = aggregate + value;
-                            }
-                            return aggregate;
-                        },
-                        new MetricConfig(),
-                        new MockTime()
-                    ));
-                    return valuesProvider;
-                }
+    private void setupShouldAddMultipleMetricsToValuesProviderForAggregation(final List<Metric> aggregationMetrics) {
+        metricsAggregations = new TestMetricsAggregations() {
+            @Override
+            public void configure(final Map<String, ?> configs) {
+                addAggregation(
+                    AGGREGATION_NAME1,
+                    METRIC_NAME1.group(),
+                    METRIC_NAME1.name(),
+                    Collections.emptyList(),
+                    new MetricRegistrar<Integer, Integer>() {
+                        @Override
+                        public ValuesProvider<Integer> register(final Map<String, String> tags) {
+                            final ValuesProvider<Integer> valuesProvider = new ValuesProvider<>();
+                            aggregationMetrics.add(new KafkaMetric(
+                                new Object(),
+                                new MetricName(AGGREGATION_NAME1, "", "", Collections.emptyMap()),
+                                (Gauge<Integer>) (config, now) -> {
+                                    int aggregate = 0;
+                                    for (final int value : valuesProvider) {
+                                        aggregate = aggregate + value;
+                                    }
+                                    return aggregate;
+                                },
+                                new MetricConfig(),
+                                new MockTime()
+                            ));
+                            return valuesProvider;
+                        }
 
-                @Override
-                public void deregister() {
-                }
+                        @Override
+                        public void deregister() {
+                        }
+                    }
+                );
             }
-        );
+        };
+        metricsAggregations.configure(Collections.emptyMap());
+    }
+
+    private void shouldAddMultipleMetricsToValuesProviderForAggregation(final List<Metric> aggregationMetrics,
+                                                                        final Consumer<List<KafkaMetric>> metricsChanger) {
         final KafkaMetric changedMetric1 = getMetric(METRIC_NAME1);
         final KafkaMetric changedMetric2 = getMetric(METRIC_NAME2);
         final KafkaMetric changedMetric3 = getMetric(METRIC_NAME3);
 
         metricsChanger.accept(Arrays.asList(changedMetric1, changedMetric2, changedMetric3));
 
-        assertThat(metrics.get(0).metricValue(), is(2));
+        assertThat(aggregationMetrics.get(0).metricValue(), is(2));
     }
 
     @Test
     public void shouldThrowIfAMetricIsRemovedForWhichNoAgggregationGroupExists() {
-        mockMetricsAggregations.addAggregation(
-            "first aggregation for updated metric",
-            METRIC_NAME1.group(),
-            METRIC_NAME1.name(),
-            Arrays.asList(TAG1, TAG2),
-            metricRegistrar1
-        );
+        metricsAggregations = new TestMetricsAggregations() {
+            @Override
+            public void configure(final Map<String, ?> configs) {
+                addAggregation(
+                    "first aggregation for updated metric",
+                    METRIC_NAME1.group(),
+                    METRIC_NAME1.name(),
+                    Arrays.asList(TAG1, TAG2),
+                    metricRegistrar1
+                );
+            }
+        };
+        metricsAggregations.configure(Collections.emptyMap());
         final KafkaMetric changedMetric = getMetric(METRIC_NAME1);
 
-        assertThrows(IllegalStateException.class, () -> mockMetricsAggregations.metricRemoval(changedMetric));
+        assertThrows(IllegalStateException.class, () -> metricsAggregations.metricRemoval(changedMetric));
     }
 
     private KafkaMetric getMetric(final MetricName metricName) {
