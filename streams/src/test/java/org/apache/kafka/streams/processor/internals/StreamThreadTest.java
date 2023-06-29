@@ -1139,6 +1139,13 @@ public class StreamThreadTest {
         internalTopologyBuilder.addSource(null, "source1", null, null, null, topic1);
 
         final Properties props = configProps(true);
+
+        // The state updater is disabled for this test because this test relies on the fact the mainConsumer.resume()
+        // is not called. This is not true when the state updater is enabled which leads to
+        // java.lang.IllegalStateException: No current assignment for partition topic1-2.
+        // Since this tests verifies an aspect that is independent from the state updater, it is OK to disable
+        // the state updater and leave the rewriting of the test to later, when the code path for disabled state updater
+        // is removed.
         props.put(InternalConfig.STATE_UPDATER_ENABLED, false);
         final StreamThread thread =
             createStreamThread(CLIENT_ID, new StreamsConfig(props), new MockTime(1), true);
@@ -1840,6 +1847,7 @@ public class StreamThreadTest {
         final String changelogName1 = APPLICATION_ID + "-" + storeName1 + "-changelog";
         final String changelogName2 = APPLICATION_ID + "-" + storeName2 + "-changelog";
         final Properties props = configProps(false);
+        // Updating standby tasks on the stream thread only happens when the state updater is disabled
         props.put(InternalConfig.STATE_UPDATER_ENABLED, false);
         final StreamsConfig config = new StreamsConfig(props);
         final StreamThread thread = createStreamThread(CLIENT_ID, config, false);
@@ -1964,6 +1972,7 @@ public class StreamThreadTest {
         final String changelogName1 = APPLICATION_ID + "-" + storeName1 + "-changelog";
         final String changelogName2 = APPLICATION_ID + "-" + storeName2 + "-changelog";
         final Properties props = configProps(false);
+        // Updating standby tasks on the stream thread only happens when the state updater is disabled
         props.put(InternalConfig.STATE_UPDATER_ENABLED, false);
         final StreamsConfig config = new StreamsConfig(props);
         final StreamThread thread = createStreamThread(CLIENT_ID, config, false);
