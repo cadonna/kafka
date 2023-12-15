@@ -54,6 +54,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.apache.kafka.streams.processor.internals.ClientUtils.producerRecordSizeInBytes;
@@ -162,6 +163,9 @@ public class RecordCollectorImpl implements RecordCollector {
         send(topic, key, value, headers, partition, timestamp, keySerializer, valueSerializer, processorNodeId, context);
     }
 
+    private final AtomicBoolean fakeNetworkExceptionThrown = new AtomicBoolean(false);
+    private int recordCount = 0;
+
     @Override
     public <K, V> void send(final String topic,
                             final K key,
@@ -173,6 +177,10 @@ public class RecordCollectorImpl implements RecordCollector {
                             final Serializer<V> valueSerializer,
                             final String processorNodeId,
                             final InternalProcessorContext<Void, Void> context) {
+        if (partition == 1 && recordCount > 75000 && fakeNetworkExceptionThrown.compareAndSet(false, true)) {
+            throw new TaskCorruptedException(Collections.singleton(new TaskId(0, partition)));
+        }
+        ++recordCount;
         checkForException();
 
         final byte[] keyBytes;
@@ -321,6 +329,7 @@ public class RecordCollectorImpl implements RecordCollector {
         // transaction during handleRevocation and thus there is no transaction in flight, or else none of the revoked
         // tasks had any data in the current transaction and therefore there is no need to commit or abort it.
 
+//        offsets.clear();  // uncomment to fix the bug
         checkForException();
     }
 
@@ -337,6 +346,7 @@ public class RecordCollectorImpl implements RecordCollector {
             streamsProducer.abortTransaction();
         }
 
+//        offsets.clear();  // uncomment to fix the bug
         checkForException();
     }
 

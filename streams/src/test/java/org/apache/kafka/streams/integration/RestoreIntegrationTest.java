@@ -26,6 +26,7 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.IntegerDeserializer;
 import org.apache.kafka.common.serialization.IntegerSerializer;
 import org.apache.kafka.common.serialization.Serdes;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.common.utils.MockTime;
 import org.apache.kafka.streams.KafkaStreams;
@@ -34,6 +35,7 @@ import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
+import org.apache.kafka.streams.errors.StreamsUncaughtExceptionHandler;
 import org.apache.kafka.streams.integration.utils.EmbeddedKafkaCluster;
 import org.apache.kafka.streams.integration.utils.IntegrationTestUtils;
 import org.apache.kafka.streams.integration.utils.IntegrationTestUtils.TrackingStateRestoreListener;
@@ -57,15 +59,11 @@ import org.apache.kafka.test.IntegrationTest;
 import org.apache.kafka.test.TestUtils;
 import org.hamcrest.CoreMatchers;
 import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import java.io.File;
-import java.io.IOException;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
@@ -74,6 +72,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
 import org.junit.rules.TestName;
 import org.junit.rules.Timeout;
 
@@ -93,33 +94,37 @@ import static org.junit.Assert.assertTrue;
 public class RestoreIntegrationTest {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(600);
-    private static final int NUM_BROKERS = 1;
+    private static final int NUM_BROKERS = 3;
 
     public static final EmbeddedKafkaCluster CLUSTER = new EmbeddedKafkaCluster(NUM_BROKERS);
 
-    @BeforeClass
-    public static void startCluster() throws IOException {
-        CLUSTER.start();
-    }
+//    @BeforeClass
+//    public static void startCluster() throws IOException {
+//        CLUSTER.start();
+//    }
 
-    @AfterClass
-    public static void closeCluster() {
-        CLUSTER.stop();
-    }
+//    @AfterClass
+//    public static void closeCluster() {
+//        CLUSTER.stop();
+//    }
 
     @Rule
     public final TestName testName = new TestName();
     private String appId;
     private String inputStream;
+    private String outputStream;
 
     private final int numberOfKeys = 10000;
     private KafkaStreams kafkaStreams;
 
-    @Before
+//    @Before
     public void createTopics() throws InterruptedException {
         appId = safeUniqueTestName(RestoreIntegrationTest.class, testName);
         inputStream = appId + "-input-stream";
+        outputStream = appId + "-output-stream";
+        CLUSTER.deleteTopicsAndWait(inputStream, outputStream);
         CLUSTER.createTopic(inputStream, 2, 1);
+        CLUSTER.createTopic(outputStream, 2, 1);
     }
 
     private Properties props() {
@@ -495,5 +500,123 @@ public class RestoreIntegrationTest {
 
         consumer.commitSync();
         consumer.close();
+    }
+
+
+    final private AtomicInteger notFoundKey = new AtomicInteger(0);
+
+
+    @SuppressWarnings("deprecation")
+    @Test
+    public void test() throws Exception {
+        CLUSTER.start();
+
+        createTopics();
+
+        final Properties streamsConfiguration = new Properties();
+        streamsConfiguration.put(StreamsConfig.APPLICATION_ID_CONFIG, appId);
+        streamsConfiguration.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, CLUSTER.bootstrapServers());
+        streamsConfiguration.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.Integer().getClass());
+        streamsConfiguration.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
+        streamsConfiguration.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, StreamsConfig.EXACTLY_ONCE);
+        streamsConfiguration.put(StreamsConfig.NUM_STREAM_THREADS_CONFIG, 2);
+        streamsConfiguration.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+
+        final Properties streamsConfiguration1 = new Properties();
+        streamsConfiguration1.putAll(streamsConfiguration);
+        streamsConfiguration1.put(StreamsConfig.STATE_DIR_CONFIG, TestUtils.tempDirectory(appId + "1").getPath());
+
+        purgeLocalStreamsState(streamsConfiguration1);
+
+        final int startKey = 1;
+        final int endKey = 200001;
+        final int valueSize = 1000;
+        final StringBuilder value1 = new StringBuilder(valueSize);
+        for (int i = 0; i < valueSize; ++i) {
+            value1.append("A");
+        }
+        final String valueStr1 = value1.toString();
+        final StringBuilder value3 = new StringBuilder(valueSize);
+        for (int i = 0; i < valueSize; ++i) {
+            value3.append("Z");
+        }
+        final String valueStr3 = value3.toString();
+        final List<KeyValue<Integer, String>> recordBatch1 = IntStream.range(startKey, endKey).mapToObj(i -> KeyValue.pair(i, valueStr1)).collect(Collectors.toList());
+        IntegrationTestUtils.produceKeyValuesSynchronously(inputStream,
+            recordBatch1,
+            TestUtils.producerConfig(CLUSTER.bootstrapServers(),
+                IntegerSerializer.class,
+                StringSerializer.class),
+            CLUSTER.time);
+
+        final List<KeyValue<Integer, String>> recordBatch3 = IntStream.range(startKey, endKey).mapToObj(i -> KeyValue.pair(i, valueStr3)).collect(Collectors.toList());
+        IntegrationTestUtils.produceKeyValuesSynchronously(inputStream,
+            recordBatch3,
+            TestUtils.producerConfig(CLUSTER.bootstrapServers(),
+                IntegerSerializer.class,
+                StringSerializer.class),
+            CLUSTER.time);
+
+        StoreBuilder<KeyValueStore<Integer, String>> stateStore = Stores.keyValueStoreBuilder(
+                Stores.persistentKeyValueStore("stateStore"),
+                Serdes.Integer(),
+                Serdes.String()).withCachingEnabled();
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicInteger updateCount = new AtomicInteger(startKey);
+        final Topology topology = new Topology();
+        topology
+            .addSource("source", inputStream)
+            .addProcessor("processor", () -> new Processor<Integer, String, Integer, String>() {
+                KeyValueStore<Integer, String> stateStore;
+                ProcessorContext<Integer, String> context;
+
+                @Override
+                public void init(ProcessorContext<Integer, String> context) {
+                    Processor.super.init(context);
+                    this.context = context;
+                    stateStore = context.getStateStore("stateStore");
+                }
+
+                @Override
+                public void process(Record<Integer, String> record) {
+                    final int notFoundKeyLocal = notFoundKey.get();
+                    if (notFoundKeyLocal != 0 && stateStore.get(notFoundKeyLocal) != null) {
+                        System.out.println("StreamThread: " + Thread.currentThread().getName() + " found key " + notFoundKeyLocal + " again");
+                        notFoundKey.set(0);
+                    }
+                    if (record.value().startsWith("A") || record.value().startsWith("B")) {
+                        stateStore.put(record.key(), record.value());
+                        context.forward(record);
+                    } else {
+                        if (stateStore.get(record.key()) == null) {
+                            notFoundKey.set(record.key());
+                            throw new IllegalStateException("Could not find key " + record.key() + " in state store!");
+                        }
+                        if (updateCount.addAndGet(1) == endKey) {
+                            System.out.println("Last verified key was: " + record.key());
+                            latch.countDown();
+                        }
+                        context.forward(record);
+                    }
+                }
+
+                @Override
+                public void close() {
+                    Processor.super.close();
+                }
+            }, "source")
+            .addStateStore(stateStore, "processor");
+
+        final KafkaStreams kafkaStreams1 = new KafkaStreams(topology, streamsConfiguration1);
+
+        kafkaStreams1.setUncaughtExceptionHandler((exception) -> StreamsUncaughtExceptionHandler.StreamThreadExceptionResponse.REPLACE_THREAD);
+
+        kafkaStreams1.start();
+        latch.await();
+
+        kafkaStreams1.close();
+
+        CLUSTER.stop();
     }
 }

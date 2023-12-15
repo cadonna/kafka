@@ -588,6 +588,7 @@ public class StreamsPartitionAssignor implements ConsumerPartitionAssignor, Conf
         }
     }
 
+    private static AtomicInteger perConsumerAssignmentCount = new AtomicInteger(0);
     /**
      * Assigns a set of tasks to each client (Streams instance) using the configured task assignor, and also
      * populate the stateful tasks that have been assigned to the clients
@@ -1173,6 +1174,31 @@ public class StreamsPartitionAssignor implements ConsumerPartitionAssignor, Conf
             final String consumer = taskEntry.getKey();
             final int totalCount = threadLoad.getOrDefault(consumer, 0) + taskEntry.getValue().size();
             threadLoad.put(consumer, totalCount);
+        }
+
+        // This code block triggers an artificial task revocation.
+        // The task revocation is needed to trigger the third rebalance after which the restoration reads the
+        // wrong checkpointed offset and starts to restore the state store at a too large offset missing
+        // records.
+        if (!tasksToAssign.isEmpty()) {
+            int localPerConsumerAssignment = perConsumerAssignmentCount.getAndIncrement();
+            System.out.println("Per-consumer assignment count: " + localPerConsumerAssignment);
+            if (localPerConsumerAssignment == 1) {
+                final TaskId task01 = new TaskId(0, 1);
+                for (final Map.Entry<String, List<TaskId>> assignmentPerThread : assignment.entrySet()) {
+                    final List<TaskId> taskIds = assignmentPerThread.getValue();
+                    if (taskIds.contains(task01)) {
+                        taskIds.remove(task01);
+                        for (final Map.Entry<String, List<TaskId>> assignmentPerThread2 : assignment.entrySet()) {
+                            if (!assignmentPerThread2.getKey().equals(assignmentPerThread.getKey())) {
+                                assignmentPerThread2.getValue().add(task01);
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
         }
 
         return assignment;

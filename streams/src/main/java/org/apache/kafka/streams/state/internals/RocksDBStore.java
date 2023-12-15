@@ -18,6 +18,7 @@ package org.apache.kafka.streams.state.internals;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.metrics.Sensor.RecordingLevel;
+import org.apache.kafka.common.serialization.IntegerDeserializer;
 import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.common.utils.Utils;
@@ -736,6 +737,10 @@ public class RocksDBStore implements KeyValueStore<Bytes, byte[]>, BatchWritingS
                 );
                 // If version headers are not present or version is V0
                 keyValues.add(new KeyValue<>(record.key(), record.value()));
+                try (final IntegerDeserializer deserializer = new IntegerDeserializer()) {
+                    System.out.println("Restoring key " + deserializer.deserialize(null, record.key())
+                        + " from partition " + record.partition() + " with offset " + record.offset());
+                }
             }
             dbAccessor.prepareBatchForRestore(keyValues, batch);
             write(batch);
