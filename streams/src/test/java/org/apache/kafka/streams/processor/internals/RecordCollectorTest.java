@@ -60,7 +60,6 @@ import org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl;
 import org.apache.kafka.test.InternalMockProcessorContext;
 import org.apache.kafka.test.MockClientSupplier;
 
-import org.apache.kafka.test.MockInternalNewProcessorContext;
 import org.apache.log4j.Level;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -1088,11 +1087,11 @@ public class RecordCollectorTest {
         );
         collector.initialize();
 
-        collector.send(topic, "3", "0", null, null, stringSerializer, stringSerializer, null, new MockInternalNewProcessorContext<>(), streamPartitioner);
+        collector.send(topic, "3", "0", null, null, stringSerializer, stringSerializer, null, null, streamPartitioner);
 
         final TaskMigratedException thrown = assertThrows(
             TaskMigratedException.class,
-            () -> collector.send(topic, "3", "0", null, null, stringSerializer, stringSerializer, null, new MockInternalNewProcessorContext<>(), streamPartitioner)
+            () -> collector.send(topic, "3", "0", null, null, stringSerializer, stringSerializer, null, null, streamPartitioner)
         );
         assertEquals(exception, thrown.getCause());
     }
@@ -1123,7 +1122,7 @@ public class RecordCollectorTest {
         );
         collector.initialize();
 
-        collector.send(topic, "3", "0", null, null, stringSerializer, stringSerializer, null, new MockInternalNewProcessorContext<>(), streamPartitioner);
+        collector.send(topic, "3", "0", null, null, stringSerializer, stringSerializer, null, null, streamPartitioner);
 
         final TaskMigratedException thrown = assertThrows(TaskMigratedException.class, collector::flush);
         assertEquals(exception, thrown.getCause());
@@ -1155,7 +1154,7 @@ public class RecordCollectorTest {
         );
         collector.initialize();
 
-        collector.send(topic, "3", "0", null, null, stringSerializer, stringSerializer, null, new MockInternalNewProcessorContext<>(), streamPartitioner);
+        collector.send(topic, "3", "0", null, null, stringSerializer, stringSerializer, null, null, streamPartitioner);
 
         final TaskMigratedException thrown = assertThrows(TaskMigratedException.class, collector::closeClean);
         assertEquals(exception, thrown.getCause());
@@ -1248,7 +1247,7 @@ public class RecordCollectorTest {
             topology
         );
 
-        collector.send(topic, "3", "0", null, null, stringSerializer, stringSerializer, null, new MockInternalNewProcessorContext<>(), streamPartitioner);
+        collector.send(topic, "3", "0", null, null, stringSerializer, stringSerializer, null, null, streamPartitioner);
 
         final StreamsException thrown = assertThrows(
             StreamsException.class,
@@ -1275,7 +1274,7 @@ public class RecordCollectorTest {
             topology
         );
 
-        collector.send(topic, "3", "0", null, null, stringSerializer, stringSerializer, null, new MockInternalNewProcessorContext<>(), streamPartitioner);
+        collector.send(topic, "3", "0", null, null, stringSerializer, stringSerializer, null, null, streamPartitioner);
 
         final StreamsException thrown = assertThrows(StreamsException.class, collector::flush);
         assertEquals(exception, thrown.getCause());
@@ -1299,7 +1298,7 @@ public class RecordCollectorTest {
             topology
         );
 
-        collector.send(topic, "3", "0", null, null, stringSerializer, stringSerializer, null, new MockInternalNewProcessorContext<>(), streamPartitioner);
+        collector.send(topic, "3", "0", null, null, stringSerializer, stringSerializer, null, null, streamPartitioner);
 
         final StreamsException thrown = assertThrows(StreamsException.class, collector::closeClean);
         assertEquals(exception, thrown.getCause());
@@ -1560,6 +1559,36 @@ public class RecordCollectorTest {
     }
 
     @Test
+    public void shouldNotFailIfContextIsNotAvailableOnSerializationError() {
+        try (final ErrorStringSerializer errorSerializer = new ErrorStringSerializer()) {
+            final RecordCollector collector = new RecordCollectorImpl(
+                logContext,
+                taskId,
+                streamsProducer,
+                productionExceptionHandler,
+                streamsMetrics,
+                topology
+            );
+
+            assertThrows(
+                StreamsException.class, // should not crash with NullPointerException
+                () -> collector.send(
+                    topic,
+                    "key",
+                    "val",
+                    null,
+                    0,
+                    null,
+                    errorSerializer,
+                    stringSerializer,
+                    sinkNodeName,
+                    null // pass `null` context for testing
+                )
+            );
+        }
+    }
+    
+    @Test
     public void shouldNotFailIfRecordContextIsNotAvailableOnSerializationError() {
         try (final ErrorStringSerializer errorSerializer = new ErrorStringSerializer()) {
             final RecordCollector collector = new RecordCollectorImpl(
@@ -1578,6 +1607,31 @@ public class RecordCollectorTest {
                 () -> collector.send(topic, "key", "val", null, 0, null, errorSerializer, stringSerializer, sinkNodeName, context)
             );
         }
+    }
+
+    @Test
+    public void shouldNotFailIfContextIsNotAvailableOnSendError() {
+        final RecordCollector collector = new RecordCollectorImpl(
+            logContext,
+            taskId,
+            getExceptionalStreamsProducerOnSend(new RuntimeException("Kaboom!")),
+            productionExceptionHandler,
+            streamsMetrics,
+            topology
+        );
+
+        collector.send(
+            topic,
+            "key",
+            "val",
+            null,
+            0,
+            null,
+            stringSerializer,
+            stringSerializer,
+            sinkNodeName,
+            null // pass `null` context for testing
+        );
     }
 
     @Test
