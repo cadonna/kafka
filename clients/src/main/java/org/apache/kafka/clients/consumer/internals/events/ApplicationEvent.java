@@ -37,6 +37,7 @@ public abstract class ApplicationEvent {
         SHARE_SUBSCRIPTION_CHANGE, SHARE_UNSUBSCRIBE,
         SHARE_ACKNOWLEDGE_ON_CLOSE,
         SEEK_UNVALIDATED,
+        STREAMS_ON_ASSIGNMENT_CALLBACK_COMPLETED,
     }
 
     private final Type type;

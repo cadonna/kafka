@@ -16,17 +16,16 @@
  */
 package org.apache.kafka.clients.consumer.internals;
 
+import org.apache.kafka.clients.consumer.internals.events.BackgroundEvent;
+import org.apache.kafka.clients.consumer.internals.events.EventProcessor;
+import org.apache.kafka.clients.consumer.internals.events.StreamsOnAssignmentCallbackNeededEvent;
+import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.message.StreamsGroupHeartbeatResponseData;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -101,6 +100,58 @@ public class StreamsAssignmentInterface {
         this.taskLags = taskLags;
     }
 
+    private final BlockingQueue<BackgroundEvent> backgroundEventQueue = new LinkedBlockingQueue<>();
+
+    private class BackgroundEventProcessor implements EventProcessor<BackgroundEvent> {
+
+        private final ConsumerRebalanceListenerInvoker rebalanceListenerInvoker;
+
+        public BackgroundEventProcessor(final ConsumerRebalanceListenerInvoker rebalanceListenerInvoker) {
+            this.rebalanceListenerInvoker = rebalanceListenerInvoker;
+        }
+
+        @Override
+        public void process(final BackgroundEvent event) {
+            switch (event.type()) {
+                case STREAMS_ON_ASSIGNMENT_CALLBACK_NEEDED:
+                    process((StreamsOnAssignmentCallbackNeededEvent) event);
+                    break;
+
+                default:
+                    throw new IllegalArgumentException("Background event type " + event.type() + " was not expected");
+
+            }
+        }
+
+        private void process(final StreamsOnAssignmentCallbackNeededEvent event) {
+        }
+    }
+
+    public void maybeUpdateAssignment() {
+        LinkedList<BackgroundEvent> events = new LinkedList<>();
+        backgroundEventQueue.drainTo(events);
+
+//        for (BackgroundEvent event : events) {
+//            try {
+//                backgroundEventProcessor.process(event);
+//            } catch (Throwable t) {
+//                KafkaException e = ConsumerUtils.maybeWrapAsKafkaException(t);
+//
+//                if (!firstError.compareAndSet(null, e))
+//                    log.warn("An error occurred when processing the background event: {}", e.getMessage(), e);
+//            }
+//        }
+//
+//        backgroundEventReaper.reap(time.milliseconds());
+//
+//        if (firstError.get() != null)
+//            throw firstError.get();
+//
+//        return !events.isEmpty();
+
+    }
+
+
     public final AtomicReference<Assignment> reconciledAssignment = new AtomicReference<>(
         new Assignment(
             new HashSet<>(),
@@ -108,6 +159,8 @@ public class StreamsAssignmentInterface {
             new HashSet<>()
         )
     );
+
+    private final BlockingQueue<Assignment> assignments = new LinkedBlockingQueue<>();
 
     public final AtomicReference<Assignment> targetAssignment = new AtomicReference<>();
 
@@ -208,10 +261,10 @@ public class StreamsAssignmentInterface {
 
     }
 
-    public static class TaskId {
+    public static class TaskId implements Comparable<TaskId> {
 
-        public final String subtopologyId;
-        public final int partitionId;
+        private final String subtopologyId;
+        private final int partitionId;
 
         public int partitionId() {
             return partitionId;
@@ -224,6 +277,27 @@ public class StreamsAssignmentInterface {
         public TaskId(final String subtopologyId, final int partitionId) {
             this.subtopologyId = subtopologyId;
             this.partitionId = partitionId;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            TaskId taskId = (TaskId) o;
+            return partitionId == taskId.partitionId && Objects.equals(subtopologyId, taskId.subtopologyId);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(subtopologyId, partitionId);
+        }
+
+        @Override
+        public int compareTo(TaskId taskId) {
+            if (subtopologyId.equals(taskId.subtopologyId)) {
+                return partitionId - taskId.partitionId;
+            }
+            return subtopologyId.compareTo(taskId.subtopologyId);
         }
 
         @Override
@@ -279,6 +353,20 @@ public class StreamsAssignmentInterface {
         this.shutdownRequested = new AtomicBoolean(false);
         this.clientTags = clientTags;
     }
+
+//    public void addAssignment(Assignment assignment) {
+//        assignments.add(assignment);
+//    }
+//
+//    public Assignment nextAssignment() {
+//        if (!assignments.isEmpty()) {
+//            ;
+//        }
+//    }
+
+//    static Set<TaskId> toTaskSet(StreamsGroupHeartbeatResponseData.TaskIds) {
+
+//    }
 
     @Override
     public String toString() {
